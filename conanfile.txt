@@ -1,0 +1,14 @@
+[requires]
+fmt/10.2.1
+mp-units/2.1.1
+# callables/0.2.1
+# scope-lite/0.2.0
+
+[options]
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout
