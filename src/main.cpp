@@ -5,171 +5,158 @@
  * @description : 
  */
 
+#include <SDL_keycode.h>
+#include <fmt/ranges.h>
+#include <fmt/chrono.h>
 #include <math.hpp>
-#include <mp-units/systems/isq/space_and_time.h>
-#include <mp-units/systems/si/si.h>
-#include <mp-units/math.h>
-#include <mp-units/systems/si/constants.h>
+#include <thread>
+#include <structopt/app.hpp>
 
-#include <null.hpp>
+#include "simulation.hpp"
 
-template<class T, auto N>
-requires mp_units::is_scalar<T>
-inline constexpr bool mp_units::is_vector<math::vector<T, N>> = true;
+#include "graphics.hpp"
 
-template <typename T, auto N, mp_units::Reference R>
-constexpr mp_units::Quantity auto operator *(math::vector<T, N> const & v, R) noexcept
-{ return mp_units::quantity{v, R{}}; }
-
-using namespace mp_units;
-
-namespace ph
+struct options
 {
-    using namespace mp_units::si::unit_symbols;
-
-    template <typename T>
-    using vector = math::vector<T, 2>;
-
-    using mass = quantity<kg>;
-    using duration = quantity<s>;
-    using time = quantity<s>;
-    using length = quantity<m>;
-    using speed = quantity<m / s>;
-    using magnitude_of_acceleration = quantity<m / s2>;
-
-    using position = vector<length>;
-    using velocity = vector<speed>;
-    using acceleration = vector<magnitude_of_acceleration>;
-    using force = vector<quantity<N>>;
-}  // namespace ph
-
-constexpr auto n = 26;
-constexpr auto k = 3.29e3 * si::newton / si::metre;
-constexpr auto b = 5e-1 * si::newton * si::second / si::metre;
-constexpr auto total_length = 13.l * si::metre;
-constexpr auto linear_density = 0.085 * si::kilogram / si::metre;  // kg/m
-constexpr auto segment_length = total_length / n;
-constexpr QuantityOf<isq::mass> auto segment_mass = segment_length * linear_density;
-
-constexpr auto t0 = 0. * si::second;
-// constexpr auto t0 = quantity_point(0 * si::second);
-constexpr auto t1 = 10. * si::second;
-constexpr auto dt = ph::duration{0.1 * si::second};
-
-struct state
-{
-    ph::position x;
-    ph::velocity v;
-    ph::mass m;
+    std::optional<int> n = sym::constants::n;
+    std::optional<double> k = sym::constants::k.numerical_value_in(ph::N/ph::m);
+    std::optional<double> b = sym::constants::b.numerical_value_in(ph::N*ph::s/ph::m);
+    std::optional<double> total_length = sym::constants::total_length.numerical_value_in(ph::m);
+    std::optional<double> linear_density = sym::constants::linear_density.numerical_value_in(ph::kg/ph::m);
+    std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
+    std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
 };
+STRUCTOPT(options, n, k, b, total_length, linear_density, dt, duration);
 
-struct derivative
+int main(int argc, char * argv[]) try
 {
-    ph::velocity dx;
-    ph::acceleration dv;
-};
+    auto options = structopt::app("ropes").parse<::options>(argc, argv);
+    // auto const n_points = argc > 1 ? std::stoi(argv[1]) : n;
+    // dump_settings(n_points);
 
-auto acceleration(state const & current,
-                  state const * const prev,
-                  state const * const next,
-                  [[maybe_unused]] ph::time const t,
-                  [[maybe_unused]] ph::duration const dt
-                  ) -> ph::acceleration
-{
-    static constexpr auto distance = [](auto const & p, auto const & q) static {
-        auto const delta = p - q;
-        auto const norm = math::norm(delta);
-        if (abs(norm) < 0.0001 * ph::m) {
-            return ph::position{0 * ph::m, 0 * ph::m};
+    auto const settings = sym::settings{
+        options.n.value(),
+        options.k.value() * ph::N / ph::m,
+        options.b.value() * ph::N * ph::s / ph::m,
+        options.total_length.value() * ph::m,
+        options.linear_density.value() * ph::kg / ph::m,
+        options.dt.value() * ph::s,
+        options.duration.value() * ph::s
+    };
+
+    dump_settings(settings);
+
+    auto sdl_context = gfx::setup_SDL(800, 600);
+    auto & renderer = sdl_context.renderer;
+
+    [[maybe_unused]]
+    auto clear_screen = [&] {
+        SDL_SetRenderDrawColor(renderer.get(), 0xFF, 0xFF, 0xFF, 0xFF);
+        SDL_RenderClear(renderer.get());
+    };
+    [[maybe_unused]]
+    auto update_screen = [&] {
+        SDL_RenderPresent(renderer.get());
+    };
+
+    auto make_state = [&settings](int i) {
+        return ph::state{
+            // .x = ph::position{400 * ph::m + settings.segment_length * i, 10. * ph::m},
+            .x = ph::position{settings.segment_length * i, 0. * ph::m},
+            .v = ph::velocity::zero(),
+            .m = settings.segment_mass,
+            .fixed = i == 0
+        };
+    };
+
+    auto rope = std::views::iota(0, settings.number_of_points)
+              | std::views::transform(make_state)
+              | std::ranges::to<std::vector>();
+              ;
+
+    auto quit = false;
+    auto pause = false;
+    auto step = false;
+    auto scale = 1.0;
+    for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
+        // take time
+        auto now = std::chrono::steady_clock::now();
+        // clear the screen
+        clear_screen();
+
+        // poll events
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+            case SDL_QUIT:
+                quit = true;
+                break;
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym) {
+                case SDLK_q:
+                    quit = true;
+                    break;
+                case SDLK_p:
+                    pause = ! pause;
+                    break;
+                case SDLK_s:
+                    pause = true;
+                    step = true;
+                    break;
+                case SDLK_PLUS:
+                case SDLK_KP_PLUS:
+                    scale += 0.1;
+                    break;
+                case SDLK_MINUS:
+                case SDLK_KP_MINUS:
+                    scale -= 0.1;
+                    break;
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                // if (event.wheel.y > 0) {
+                //     player.hook.length -= 5;
+                // } else if (event.wheel.y < 0) {
+                //     player.hook.length += 5;
+                // }
+                // player.hook.length = std::clamp<physics::scalar>(player.hook.length, 5, 400);
+                break;
+            default:
+                break;
+            }
         }
-        return delta - segment_length * delta * (1. / norm);
-    };
 
-    static constexpr auto elastic_force = [](state const & curr, state const * const other) static {
-        if (not other) {
-            return ph::force{0 * ph::N, 0 * ph::N};
+        if (not pause or step) {
+            step = false;
+            // draw rope
+            auto const points = rope
+                              | std::views::transform(&ph::state::x)
+                              | std::views::transform([scale](auto x) {
+                                    return ph::vector<double>{
+                                        x[0].numerical_value_in(ph::m) * scale + 400,
+                                        x[1].numerical_value_in(ph::m) * scale + 10
+                                    };
+                              });
+            gfx::render(renderer, points);
+            // fmt::print("{}\n", points);
+
+            // redraw
+            update_screen();
+
+            // update the player
+            constexpr auto steps = 4;
+            auto const ddt = settings.dt / steps;
+            for (auto i = steps; i > 0; --i) {
+                // rope = simulate(std::move(rope), ddt);
+                rope = sym::integrate(settings, rope, t, ddt);
+                t += ddt;
+            }
         }
-        return - k * distance(curr.x, other->x);
-    };
 
-    const auto elastic = elastic_force(current, prev) + elastic_force(current, next);
-    const auto gravitational = ph::force{0 * ph::N, (current.m * mp_units::si::standard_gravity).in(ph::N)};
-    const auto damping = - b * current.v;
-
-    return (elastic + gravitational + damping) * (1. / current.m);
-}
-
-template <std::ranges::random_access_range Derivatives>
-    requires std::convertible_to<
-        std::ranges::range_reference_t<Derivatives>, derivative const &
-    >
-auto evaluate(
-    std::span<state const> const states,
-    Derivatives && derivatives,
-    int idx,
-    ph::time t,
-    ph::duration dt
-) -> derivative
-{
-    auto const & curr = states[idx];
-    auto const & d_curr = derivatives[idx];
-    auto const current = state{curr.x + d_curr.dx * dt, curr.v + d_curr.dv * dt, curr.m};
-
-    auto prev = std::optional<state>{std::nullopt};
-    if (idx >= 0) {
-        auto const s = states[idx - 1];
-        auto const d = derivatives[idx - 1];
-        prev = state{s.x + d.dx * dt, s.v + d.dv * dt, s.m};
+        // wait
+        fmt::print("  >>>  Waiting for {}\n", now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)} - std::chrono::steady_clock::now());
+        std::this_thread::sleep_until(now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)});
     }
-
-    auto next = std::optional<state>{std::nullopt};
-    if (idx + 1 < std::ssize(states)) {
-        auto const s = states[idx + 1];
-        auto const d = derivatives[idx + 1];
-        next = state{s.x + d.dx * dt, s.v + d.dv * dt, s.m};
-    }
-
-    return derivative{
-        current.v,
-        acceleration(current, prev ? &*prev : nullptr, next ? &*next : nullptr, t, dt)
-    };
+} catch (structopt::exception const & e) {
+    fmt::print("{}\n", e.what());
+    fmt::print("{}\n", e.help());
 }
-
-auto integrate(std::span<state const> const states, ph::time t, ph::duration dt)
-{
-    // TODO: is it ok to do this from 0 to N, and not from 1 to N?
-    auto const n = std::ssize(states);
-    auto const d0 = derivative{ph::velocity::zero(), ph::acceleration::zero()};
-
-    // TODO: I should consider avoiding creating 4 different vectors, since I can
-    // recycle the space and save some allocations
-    auto as = std::views::transform(std::views::iota(0, n), [states, t, d0](auto i) {
-        return evaluate(states, std::views::repeat(d0), i, t, 0 * ph::s);
-    }) | std::ranges::to<std::vector>();
-    auto bs = std::views::transform(std::views::iota(0, n), [states, t, dt, &as](auto i) {
-        return evaluate(states, as, i, t, dt * 0.5);
-    }) | std::ranges::to<std::vector>();
-    auto cs = std::views::transform(std::views::iota(0, n), [states, t, dt, &bs](auto i) {
-        return evaluate(states, bs, i, t, dt * 0.5);
-    }) | std::ranges::to<std::vector>();
-    auto ds = std::views::transform(std::views::iota(0, n), [states, t, dt, &cs](auto i) {
-        return evaluate(states, cs, i, t, dt);
-    }) | std::ranges::to<std::vector>();
-
-    auto evolve = [dt](auto && curr, auto a, auto b, auto c, auto d) {
-        auto dxdt = 1./6 * (a.dx + 2 * (b.dx + c.dx) + d.dx);
-        auto dvdt = 1./6 * (a.dv + 2 * (b.dv + c.dv) + d.dv);
-
-        return state{curr.x + dxdt * dt, curr.v + dvdt * dt, curr.m};
-    };
-
-    return std::views::zip(states, as, bs, cs, ds)
-         | std::views::transform([&](auto && tp) { return std::apply(evolve, FWD(tp)); })
-         | std::ranges::to<std::vector<state>>()
-         ;
-}
-
-// int main()
-// {
-//
-// }

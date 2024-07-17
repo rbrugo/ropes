@@ -19,30 +19,55 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                                Conan                                 #
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                 Conan                                  #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR} ${CMAKE_MODULE_PATH})
 set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR} ${CMAKE_PREFIX_PATH})
 
 find_package(fmt REQUIRED)
 find_package(mp-units REQUIRED)
+find_package(scope-lite REQUIRED)
+find_package(structopt REQUIRED)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                           Enable warnings                            #
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                             Enable warnings                            #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 add_library(project_warnings INTERFACE)
 include(cmake/compiler_warnings.cmake)
 set_project_warnings(project_warnings)
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-#                             ropes                              #
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                  SDL2                                  #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+find_package(SDL2 REQUIRED)
+find_package(SDL2_image REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+add_library(SDL_collection)
+target_sources(SDL_collection PRIVATE src/graphics.cpp)
+target_compile_features(SDL_collection PUBLIC cxx_std_23)
+target_compile_definitions(SDL_collection PUBLIC MP_UNITS_API_STD_FORMAT=0)
+target_link_libraries(SDL_collection
+    PUBLIC
+        fmt::fmt nonstd::scope-lite
+        SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf
+)
+target_include_directories(SDL_collection PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
+target_link_options(SDL_collection PRIVATE -fuse-ld=mold)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                                 ropes                                  #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 add_executable(ropes)
-target_sources(ropes PRIVATE src/main.cpp)
-target_compile_features(ropes PUBLIC cxx_std_20)
+target_sources(ropes PRIVATE src/main.cpp src/simulation.cpp)
+target_compile_features(ropes PUBLIC cxx_std_23)
 target_compile_options(ropes PRIVATE)
-target_link_libraries(ropes PRIVATE fmt::fmt mp-units::mp-units project_warnings)
+target_compile_definitions(ropes PUBLIC MP_UNITS_API_STD_FORMAT=0)
+target_link_libraries(ropes
+    PRIVATE
+        fmt::fmt mp-units::mp-units structopt::structopt
+        SDL_collection project_warnings
+)
 target_link_options(ropes PRIVATE -fuse-ld=mold)
 target_include_directories(ropes PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 enable_sanitizers(ropes)
