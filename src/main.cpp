@@ -80,6 +80,8 @@ int main(int argc, char * argv[]) try
     auto pause = false;
     auto step = false;
     auto scale = 5.0;
+    auto x_offset = 400;
+    auto y_offset = 15;
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
         // take time
         auto now = std::chrono::steady_clock::now();
@@ -112,6 +114,18 @@ int main(int argc, char * argv[]) try
                 case SDLK_KP_MINUS:
                     scale -= 0.1;
                     break;
+                case SDLK_UP:
+                    y_offset -= 5;
+                    break;
+                case SDLK_DOWN:
+                    y_offset += 5;
+                    break;
+                case SDLK_LEFT:
+                    x_offset -= 5;
+                    break;
+                case SDLK_RIGHT:
+                    x_offset += 5;
+                    break;
                 }
                 break;
             case SDL_MOUSEWHEEL:
@@ -132,10 +146,10 @@ int main(int argc, char * argv[]) try
             // draw rope
             auto const points = rope
                               | std::views::transform(&ph::state::x)
-                              | std::views::transform([scale](auto x) {
+                              | std::views::transform([=](auto x) {
                                     return ph::vector<double>{
-                                        x[0].numerical_value_in(ph::m) * scale + 400,
-                                        x[1].numerical_value_in(ph::m) * scale + 10
+                                        x[0].numerical_value_in(ph::m) * scale + x_offset,
+                                        x[1].numerical_value_in(ph::m) * scale + y_offset
                                     };
                               });
             gfx::render(renderer, points);
