@@ -216,7 +216,17 @@ constexpr inline struct unit_fn
 {
     template <typename T, std::size_t N>
     [[nodiscard]] static constexpr
-    auto operator()(vector<T, N> const & v) noexcept  -> vector<T, N> { return v / norm(v); }
+    auto operator()(vector<T, N> const & v) noexcept {
+        if constexpr (requires(vector<T, N> const & x) { { x / norm(x) }; }) {
+            return v / norm(v);
+        } else if constexpr (requires(vector<T, N> const & x) { { x * inverse(norm(x)) }; }) {
+            return v * inverse(norm(v));
+        } else if constexpr (requires { { T{1.} / norm(v) } -> std::same_as<T>; }) {
+            return v * (T{1.} / norm(v));
+        } else {
+            return v * (1. / norm(v)); 
+        }
+    }
 } unit;
 
 // vector_cast
