@@ -89,7 +89,8 @@ struct settings
 {
     int number_of_points;
     ph::stiffness elastic_constant;
-    ph::damping_coefficient damping;
+    ph::damping_coefficient external_damping;
+    ph::damping_coefficient internal_damping;
     ph::length total_length;
     ph::length segment_length;
     ph::linear_density linear_density;
@@ -102,7 +103,8 @@ struct settings
     settings(
         int n_points,
         ph::stiffness k,
-        ph::damping_coefficient b,
+        ph::damping_coefficient b,  // external / tangential
+        ph::damping_coefficient c,  // internal / radial
         ph::length total_length,
         ph::linear_density linear_density,
         ph::duration dt,
@@ -110,7 +112,8 @@ struct settings
     ) :
         number_of_points{n_points},
         elastic_constant{k},
-        damping{b},
+        external_damping{b},
+        internal_damping{c},
         total_length{total_length},
         linear_density{linear_density},
         t0{0 * ph::s},
@@ -175,9 +178,10 @@ namespace constants
 {
 constexpr auto n = 3;  // 26;
 constexpr auto k = 3.29e3 * si::newton / si::metre;
-constexpr auto b = 0 * 5e-1 * si::newton * si::second / si::metre;  // TODO: remove 0
+constexpr auto b = 2e-1 * si::newton * si::second / si::metre;
+constexpr auto c = 5e-1 * si::newton * si::second / si::metre;  // range 0.5 - 2
 constexpr auto total_length = 70. * si::metre;
-constexpr auto linear_density = 0.085 * si::kilogram / si::metre;  // kg/m
+constexpr auto linear_density = 0.085 * si::kilogram / si::metre;
 constexpr auto segment_length = total_length / (n - 1);
 constexpr QuantityOf<isq::mass> auto segment_mass = segment_length * linear_density;
 constexpr QuantityOf<isq::mass> auto fixed_point_mass = 1e10 * si::kilogram;

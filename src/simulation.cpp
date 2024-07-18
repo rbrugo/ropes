@@ -9,6 +9,7 @@
 #include <fmt/ranges.h>
 #include <mp-units/format.h>
 #include <mp-units/ext/format.h>
+#include <mp-units/math.h>
 
 namespace sym {
 
@@ -26,7 +27,8 @@ auto acceleration(
 
     auto const segment_length = settings.segment_length;
     auto const k = settings.elastic_constant;
-    auto const b = settings.damping;
+    auto const b = settings.external_damping;
+    auto const c = settings.internal_damping;
 
     static auto distance = [segment_length](auto const & p, auto const & q) {
         auto const delta = p - q;
@@ -51,10 +53,36 @@ auto acceleration(
         return ph::force{0 * ph::N, (curr.m * mp_units::si::standard_gravity).in(ph::N)};
     };
 
-    const auto elastic = elastic_force(current, prev) + elastic_force(current, next);
-    const auto gravitational = gravitational_force(current);
-    const auto damping = - b * current.v;
-    // fmt::print("Elastic: {}\nGravitational: {}\nDamping: {}\n", elastic, gravitational, damping);
+    static auto internal_damping = [c](ph::state const & curr, ph::state const * const other) {
+        if (not other) {
+            return ph::force::zero();
+        }
+        auto distance = curr.x - other->x;
+        auto direction = math::unit(distance);  // * (1. / ph::m);
+        auto radial_velocity = ((curr.v - other->v) * direction) * direction;
+
+        return - c * radial_velocity;
+    };
+
+    static auto external_damping = [b](ph::state const & curr, ph::state const * const other) {
+        if (not other) {
+            return ph::force::zero();
+        }
+        auto distance = curr.x - other->x;
+        auto direction = math::unit(distance);  // * (1. / ph::m);
+        auto tg = decltype(direction){direction[1], -direction[0]};
+        auto tangential_velocity = ((curr.v - other->v) * tg) * tg;
+        return - b * tangential_velocity;
+    };
+
+    auto const elastic = elastic_force(current, prev) + elastic_force(current, next);
+    auto const gravitational = gravitational_force(current);
+
+    // auto const damping = - b * current.v;
+    auto const damping = internal_damping(current, prev) + internal_damping(current, next)
+                       + external_damping(current, prev) + external_damping(current, next);
+
+    // TODO: bending stiffness (I can't bend a rope 180°, it tries to straighten)
 
     return (elastic + gravitational + damping) * (1. / current.m);
 }
@@ -66,22 +94,15 @@ auto integrate(
     ph::duration dt
 ) -> std::vector<ph::state>
 {
-    // TODO: is it ok to do this from 0 to N, and not from 1 to N?
     auto const n = std::ssize(states);
     auto const d0 = ph::derivative{ph::velocity::zero(), ph::acceleration::zero()};
 
-    auto as = std::views::transform(std::views::iota(0, n), [settings, states, t, d0](auto i) {
-        return evaluate(settings, states, std::views::repeat(d0), i, t, 0 * ph::s);
-    }) | std::ranges::to<std::vector>();
-    auto bs = std::views::transform(std::views::iota(0, n), [settings, states, t, dt, &as](auto i) {
-        return evaluate(settings, states, as, i, t, dt * 0.5);
-    }) | std::ranges::to<std::vector>();
-    auto cs = std::views::transform(std::views::iota(0, n), [settings, states, t, dt, &bs](auto i) {
-        return evaluate(settings, states, bs, i, t, dt * 0.5);
-    }) | std::ranges::to<std::vector>();
-    auto ds = std::views::transform(std::views::iota(0, n), [settings, states, t, dt, &cs](auto i) {
-        return evaluate(settings, states, cs, i, t, dt);
-    }) | std::ranges::to<std::vector>();
+    auto do_evaluate = [&settings, states, t, dt] (auto && derivatives, double time_scale) {
+        auto ds = std::views::all(std::forward<decltype(derivatives)>(derivatives));
+        return [&settings, states, t, dt, ds, time_scale] (auto i) {
+            return evaluate(settings, states, ds, i, t, dt * time_scale);
+        };
+    };
 
     auto as = std::views::transform(std::views::iota(0, n), do_evaluate(std::views::repeat(d0), 0.))
             | std::ranges::to<std::vector>();
@@ -108,16 +129,21 @@ auto integrate(
 }  // namespace sym
 
 void dump_settings(sym::settings const & settings) noexcept {
-    auto const & [n, k, b, total_length, segment_length, linear_density, segment_mass, t0, t1, dt] = settings;
-    fmt::print("Number of points (n):    {}\n", n);
-    fmt::print("Elastic constant (k):    {}\n", k);
-    fmt::print("Damping coefficient (b): {}\n", b);
-    fmt::print("Total length:            {}\n", total_length);
-    fmt::print("Linear density:          {}\n", linear_density);
-    fmt::print("Segment length:          {}\n", segment_length);
-    fmt::print("Segment mass:            {}\n", segment_mass);
+    auto const & [n, k, b, c, total_length, segment_length, linear_density, segment_mass, t0, t1, dt] = settings;
+    fmt::print("Number of points (n):             {}\n", n);
+    fmt::print("Elastic constant (k):             {}\n", k);
+    fmt::print("External damping coefficient (b): {}\n", b);
+    fmt::print("internal damping coefficient (c): {}\n", c);
+    fmt::print("Total length:                     {}\n", total_length);
+    fmt::print("Linear density:                   {}\n", linear_density);
+    fmt::print("Segment length:                   {}\n", segment_length);
+    fmt::print("Segment mass:                     {}\n", segment_mass);
     fmt::print("\n");
-    fmt::print("Standard gravity:        {}\n", (1. * mp_units::si::standard_gravity).in(ph::m / ph::s2));
-    fmt::print("Segment weight:          {}\n", (segment_mass * mp_units::si::standard_gravity).in(ph::N));
+    fmt::print("Standard gravity:                 {}\n", (1. * mp_units::si::standard_gravity).in(ph::m / ph::s2));
+    fmt::print("Segment weight:                   {}\n", (segment_mass * mp_units::si::standard_gravity).in(ph::N));
+    fmt::print("\n");
+    fmt::print("Initial time point:               {}\n", t0);
+    fmt::print("Final time point:                 {}\n", t1);
+    fmt::print("Frames per second:                {}\n", (1/dt).in(ph::Hz));
     fmt::print("\n");
 }

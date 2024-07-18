@@ -21,12 +21,13 @@ struct options
     std::optional<int> n = sym::constants::n;
     std::optional<double> k = sym::constants::k.numerical_value_in(ph::N/ph::m);
     std::optional<double> b = sym::constants::b.numerical_value_in(ph::N*ph::s/ph::m);
+    std::optional<double> c = sym::constants::c.numerical_value_in(ph::N*ph::s/ph::m);
     std::optional<double> total_length = sym::constants::total_length.numerical_value_in(ph::m);
     std::optional<double> linear_density = sym::constants::linear_density.numerical_value_in(ph::kg/ph::m);
     std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
 };
-STRUCTOPT(options, n, k, b, total_length, linear_density, dt, duration);
+STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, duration);
 
 int main(int argc, char * argv[]) try
 {
@@ -38,6 +39,7 @@ int main(int argc, char * argv[]) try
         options.n.value(),
         options.k.value() * ph::N / ph::m,
         options.b.value() * ph::N * ph::s / ph::m,
+        options.c.value() * ph::N * ph::s / ph::m,
         options.total_length.value() * ph::m,
         options.linear_density.value() * ph::kg / ph::m,
         options.dt.value() * ph::s,
@@ -77,7 +79,7 @@ int main(int argc, char * argv[]) try
     auto quit = false;
     auto pause = false;
     auto step = false;
-    auto scale = 1.0;
+    auto scale = 5.0;
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
         // take time
         auto now = std::chrono::steady_clock::now();
@@ -153,10 +155,14 @@ int main(int argc, char * argv[]) try
         }
 
         // wait
-        fmt::print("  >>>  Waiting for {}\n", now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)} - std::chrono::steady_clock::now());
+        // fmt::print("  >>>  Waiting for {}\n", now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)} - std::chrono::steady_clock::now());
         std::this_thread::sleep_until(now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)});
+
+        // TODO: move graphics on another thread!
     }
 } catch (structopt::exception const & e) {
     fmt::print("{}\n", e.what());
     fmt::print("{}\n", e.help());
 }
+
+// cmake --build build --preset conan-release && time build/build/Release/ropes -n=100 --dt=0.008 --duration=25
