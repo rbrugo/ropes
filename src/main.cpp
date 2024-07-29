@@ -152,8 +152,8 @@ int main(int argc, char * argv[]) try
                                         x[1].numerical_value_in(ph::m) * scale + y_offset
                                     };
                               });
-            gfx::render(renderer, points);
-            // fmt::print("{}\n", points);
+                              ;
+            gfx::render(renderer, points, settings.segment_length.numerical_value_in(ph::m), scale);
 
             // redraw
             update_screen();
