@@ -63,7 +63,6 @@ int main(int argc, char * argv[]) try
 
     auto make_state = [&settings](int i) {
         return ph::state{
-            // .x = ph::position{400 * ph::m + settings.segment_length * i, 10. * ph::m},
             .x = ph::position{settings.segment_length * i, 0. * ph::m},
             .v = ph::velocity::zero(),
             .m = settings.segment_mass,
@@ -80,8 +79,27 @@ int main(int argc, char * argv[]) try
     auto pause = false;
     auto step = false;
     auto scale = 5.0;
-    auto x_offset = 400;
-    auto y_offset = 15;
+    auto offset = ph::vector<double>{400, 15};
+    auto map_to_screen = [&scale, &offset](ph::position v) -> ph::vector<double> {
+        return v.transform([](auto x) { return x.numerical_value_in(ph::m); }) * scale + offset;
+    };
+    auto map_from_screen = [&scale, &offset](ph::vector<> x) -> ph::position {
+        return ((x - offset) / scale) * ph::m;
+    };
+
+
+    // Dragging section data
+    struct mouse : math::vector<double, 2> {
+        double & x = (*this)[0];
+        double & y = (*this)[1];
+        bool clicking = false;
+    } mouse;
+    struct dragged_info {
+        ssize_t index;
+        bool was_fixed;
+    };
+    auto dragged = std::optional<dragged_info>{std::nullopt};
+    auto manually_fixed = std::vector<ssize_t>{};
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
         // take time
         auto now = std::chrono::steady_clock::now();
@@ -115,16 +133,16 @@ int main(int argc, char * argv[]) try
                     scale -= 0.1;
                     break;
                 case SDLK_UP:
-                    y_offset -= 5;
+                    offset[1] -= 5;
                     break;
                 case SDLK_DOWN:
-                    y_offset += 5;
+                    offset[1] += 5;
                     break;
                 case SDLK_LEFT:
-                    x_offset -= 5;
+                    offset[0] -= 5;
                     break;
                 case SDLK_RIGHT:
-                    x_offset += 5;
+                    offset[0] += 5;
                     break;
                 }
                 break;
@@ -136,6 +154,78 @@ int main(int argc, char * argv[]) try
                 // }
                 // player.hook.length = std::clamp<physics::scalar>(player.hook.length, 5, 400);
                 break;
+            case SDL_MOUSEMOTION:
+                mouse.x = event.motion.x;
+                mouse.y = event.motion.y;
+                if (dragged.has_value()) {
+                    rope[dragged->index].x = map_from_screen(mouse);
+                }
+                break;
+            case SDL_MOUSEBUTTONUP: {
+                switch (event.button.button) {
+                    case SDL_BUTTON_LEFT: {
+                        if (dragged.has_value()) {
+                            rope[dragged->index].fixed = dragged->was_fixed;
+                            dragged = std::nullopt;
+                        }
+                    }
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN: {
+                auto distance = [x0 = map_from_screen(mouse)](ph::position x) {
+                    return math::squared_norm(x - x0);
+                };
+                switch (event.button.button) {
+                    // left click to move a point
+                    case SDL_BUTTON_LEFT: {
+                        auto distances = rope
+                                       | std::views::transform(&ph::state::x)
+                                       | std::views::transform(distance)
+                                       ;
+                        mouse.clicking = true;
+                        // find the nearest point
+                        auto nearest = std::ranges::min_element(distances).base().base();
+                        auto idx = std::ranges::distance(rope.begin(), nearest);
+                        dragged = dragged_info{ .index = idx, .was_fixed = rope[idx].fixed };
+                        // fix the point
+                        rope[idx].fixed = true;
+                        rope[idx].v = ph::velocity::zero();
+                        break;
+                    }
+                    // right click to statically fix a point,
+                    case SDL_BUTTON_RIGHT: {
+                        auto fixed = manually_fixed
+                                   | std::views::transform([&](auto i) { return rope[i]; })
+                                   | std::views::transform(&ph::state::x)
+                                   | std::views::transform(distance)
+                                   ;
+                        auto nearest_locked = std::ranges::min_element(fixed);
+                        if (not manually_fixed.empty() and (*nearest_locked).numerical_value_in(ph::m2) * scale <= 100*100) {
+                            auto it = nearest_locked.base().base().base().base();
+                            auto idx = *it;
+                            rope[idx].fixed = false;
+                            std::ranges::iter_swap(manually_fixed.end() - 1, it);
+                            manually_fixed.pop_back();
+                        } else {
+                            auto distances = rope
+                                | std::views::filter(std::not_fn(&ph::state::fixed))
+                                | std::views::transform(&ph::state::x)
+                                | std::views::transform(distance)
+                                ;
+                            auto nearest = std::ranges::min_element(distances).base().base().base();
+                            if (nearest == rope.end()) {
+                                break;
+                            }
+                            auto idx = std::ranges::distance(rope.begin(), nearest);
+                            manually_fixed.push_back(idx);
+                            rope[idx].fixed = true;
+                            rope[idx].v = ph::velocity::zero();
+                        }
+                        break;
+                    }
+                }
+            }
             default:
                 break;
             }
@@ -146,12 +236,7 @@ int main(int argc, char * argv[]) try
             // draw rope
             auto const points = rope
                               | std::views::transform(&ph::state::x)
-                              | std::views::transform([=](auto x) {
-                                    return ph::vector<double>{
-                                        x[0].numerical_value_in(ph::m) * scale + x_offset,
-                                        x[1].numerical_value_in(ph::m) * scale + y_offset
-                                    };
-                              });
+                              | std::views::transform(map_to_screen)
                               ;
             gfx::render(renderer, points, settings.segment_length.numerical_value_in(ph::m), scale);
 
