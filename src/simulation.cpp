@@ -129,7 +129,8 @@ auto integrate(
 }  // namespace sym
 
 void dump_settings(sym::settings const & settings) noexcept {
-    auto const & [n, k, b, c, total_length, segment_length, linear_density, segment_mass, t0, t1, dt] = settings;
+    auto const & [n, k, b, c, total_length, segment_length, linear_density, segment_mass, t0, t1, dt, fps] = settings;
+    auto const g = (1. * mp_units::si::standard_gravity).in(ph::m / ph::s2);
     fmt::print("Number of points (n):             {}\n", n);
     fmt::print("Elastic constant (k):             {}\n", k);
     fmt::print("External damping coefficient (b): {}\n", b);
@@ -139,11 +140,13 @@ void dump_settings(sym::settings const & settings) noexcept {
     fmt::print("Segment length:                   {}\n", segment_length);
     fmt::print("Segment mass:                     {}\n", segment_mass);
     fmt::print("\n");
-    fmt::print("Standard gravity:                 {}\n", (1. * mp_units::si::standard_gravity).in(ph::m / ph::s2));
-    fmt::print("Segment weight:                   {}\n", (segment_mass * mp_units::si::standard_gravity).in(ph::N));
+    fmt::print("Standard gravity:                 {}\n", g);
+    fmt::print("Segment weight:                   {}\n", segment_mass * g);
     fmt::print("\n");
     fmt::print("Initial time point:               {}\n", t0);
     fmt::print("Final time point:                 {}\n", t1);
-    fmt::print("Frames per second:                {}\n", (1/dt).in(ph::Hz));
+    fmt::print("Simulation time-step:             {}\n", dt);
+    fmt::print("Frames per second:                {}\n", fps);
+    fmt::print("Steps per frame:                  {}\n", dt * fps);
     fmt::print("\n");
 }

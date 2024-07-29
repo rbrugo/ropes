@@ -33,7 +33,7 @@ namespace ph
 {
 using namespace mp_units::si::unit_symbols;
 
-template <typename T>
+template <typename T = double>
 using vector = math::vector<T, 2>;
 
 using mass = quantity<kg>;
@@ -51,6 +51,8 @@ using position = vector<length>;
 using velocity = vector<speed>;
 using acceleration = vector<magnitude_of_acceleration>;
 using force = vector<quantity<N>>;
+
+using framerate = quantity<Hz>;
 
 struct state
 {
@@ -99,6 +101,7 @@ struct settings
     ph::time t0;
     ph::time t1;
     ph::duration dt;
+    ph::framerate fps;
 
     settings(
         int n_points,
@@ -108,6 +111,7 @@ struct settings
         ph::length total_length,
         ph::linear_density linear_density,
         ph::duration dt,
+        ph::framerate framerate,
         ph::duration duration
     ) :
         number_of_points{n_points},
@@ -118,7 +122,8 @@ struct settings
         linear_density{linear_density},
         t0{0 * ph::s},
         t1{t0 + duration},
-        dt{dt}
+        dt{dt},
+        fps{framerate}
     {
         segment_length = total_length / (number_of_points - 1);
         segment_mass = linear_density * segment_length;
@@ -189,6 +194,7 @@ constexpr QuantityOf<isq::mass> auto fixed_point_mass = 1e10 * si::kilogram;
 constexpr auto t0 = 0. * si::second;
 constexpr auto t1 = 10. * si::second;
 constexpr auto dt = ph::duration{0.1 * si::second};
+constexpr auto fps = 60 * si::hertz;
 }  // namespace constants
 
 } // namespace sym

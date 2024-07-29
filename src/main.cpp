@@ -5,16 +5,19 @@
  * @description : 
  */
 
+#ifndef NO_GRAPHICS
 #include <SDL_keycode.h>
+#include "graphics.hpp"
+#else
+struct SDL_Event {};
+#endif
 #include <fmt/ranges.h>
-#include <fmt/chrono.h>
 #include <math.hpp>
 #include <thread>
 #include <structopt/app.hpp>
 
 #include "simulation.hpp"
-
-#include "graphics.hpp"
+#include <mp-units/systems/si/chrono.h>
 
 struct options
 {
@@ -25,9 +28,10 @@ struct options
     std::optional<double> total_length = sym::constants::total_length.numerical_value_in(ph::m);
     std::optional<double> linear_density = sym::constants::linear_density.numerical_value_in(ph::kg/ph::m);
     std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
+    std::optional<double> fps = sym::constants::fps.numerical_value_in(ph::Hz);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
 };
-STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, duration);
+STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, fps, duration);
 
 int main(int argc, char * argv[]) try
 {
@@ -43,11 +47,13 @@ int main(int argc, char * argv[]) try
         options.total_length.value() * ph::m,
         options.linear_density.value() * ph::kg / ph::m,
         options.dt.value() * ph::s,
+        options.fps.value() * ph::Hz,
         options.duration.value() * ph::s
     };
 
     dump_settings(settings);
 
+#ifndef NO_GRAPHICS
     auto sdl_context = gfx::setup_SDL(800, 600);
     auto & renderer = sdl_context.renderer;
 
@@ -60,6 +66,7 @@ int main(int argc, char * argv[]) try
     auto update_screen = [&] {
         SDL_RenderPresent(renderer.get());
     };
+#endif
 
     auto make_state = [&settings](int i) {
         return ph::state{
@@ -100,9 +107,15 @@ int main(int argc, char * argv[]) try
     };
     auto dragged = std::optional<dragged_info>{std::nullopt};
     auto manually_fixed = std::vector<ssize_t>{};
+
+    auto const ΔT = 1. / settings.fps;
+    auto const δt = settings.dt;
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
         // take time
-        auto now = std::chrono::steady_clock::now();
+#ifndef NO_GRAPHICS
+        auto const now = std::chrono::steady_clock::now();
+        auto const end = now + to_chrono_duration(ΔT);
+
         // clear the screen
         clear_screen();
 
@@ -230,10 +243,12 @@ int main(int argc, char * argv[]) try
                 break;
             }
         }
+#endif
 
         if (not pause or step) {
             step = false;
             // draw rope
+#ifndef NO_GRAPHICS
             auto const points = rope
                               | std::views::transform(&ph::state::x)
                               | std::views::transform(map_to_screen)
@@ -242,26 +257,27 @@ int main(int argc, char * argv[]) try
 
             // redraw
             update_screen();
+#endif
 
-            // update the player
-            constexpr auto steps = 4;
-            auto const ddt = settings.dt / steps;
-            for (auto i = steps; i > 0; --i) {
-                // rope = simulate(std::move(rope), ddt);
-                rope = sym::integrate(settings, rope, t, ddt);
-                t += ddt;
+            // update the simulation
+            auto Δt = ph::duration::zero();
+            for (; Δt < ΔT; Δt += δt) {
+                rope = sym::integrate(settings, rope, t + Δt, δt);
             }
+            t += Δt;
         }
 
+#ifndef NO_GRAPHICS
         // wait
-        // fmt::print("  >>>  Waiting for {}\n", now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)} - std::chrono::steady_clock::now());
-        std::this_thread::sleep_until(now + std::chrono::milliseconds{value_cast<int>(settings.dt * 1000)});
-
-        // TODO: move graphics on another thread!
+        std::this_thread::sleep_until(end);
+#endif
     }
+#ifdef NO_GRAPHICS
+    fmt::print("{}\n", rope.back());  // avoid optimizing away the computation
+#endif
 } catch (structopt::exception const & e) {
     fmt::print("{}\n", e.what());
     fmt::print("{}\n", e.help());
 }
 
-// cmake --build build --preset conan-release && time build/build/Release/ropes -n=100 --dt=0.008 --duration=25
+// cmake --build build --preset conan-release && time build/build/Release/ropes -n=200 --dt=0.001 --duration=25
