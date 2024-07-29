@@ -94,6 +94,17 @@ function(enable_lto target_name)
   endif()
 endfunction()
 
+# profiling
+function(enable_profiling target_name)
+    string(TOUPPER "ENABLE_PROFILING_FOR_${target_name}" OPT_NAME)
+    option(${OPT_NAME} "Enable profiling" OFF)
+    if (${OPT_NAME})
+        target_compile_options(${target_name} PRIVATE -pg -g)
+        target_link_options(${target_name} PRIVATE -pg)
+        message("Enabling profiling for project '${target_name}'")
+    endif()
+endfunction()
+
 # force colors in compiler output
 option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
 mark_as_advanced(FORCE_COLORED_OUTPUT)
