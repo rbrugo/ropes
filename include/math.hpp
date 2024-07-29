@@ -176,6 +176,17 @@ struct vector : std::array<T, N>, public arithmetic
             return vector<T2, N>{T2(std::get<I>(*this))...};
         }(std::make_index_sequence<N>{});
     }
+
+    template <typename Fn>
+        requires std::invocable<Fn, T>
+    constexpr auto transform(Fn && fn) const
+        -> vector<std::invoke_result_t<Fn, T>, N>
+    {
+        using R = std::invoke_result_t<Fn, T>;
+        return [this, fn=FWD(fn)]<size_t ...I>(std::index_sequence<I...>) {
+            return vector<R, N>{fn(std::get<I>(*this))...};
+        }(std::make_index_sequence<N>{});
+    }
 };
 
 static_assert(vector<int, 2>::zero() == vector<int, 2>{0, 0});
