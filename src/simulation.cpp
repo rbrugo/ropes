@@ -57,8 +57,8 @@ auto acceleration(
         if (not other) {
             return ph::force::zero();
         }
-        auto distance = curr.x - other->x;
-        auto direction = math::unit(distance);  // * (1. / ph::m);
+        auto Δx = curr.x - other->x;
+        auto direction = math::unit(Δx);
         auto radial_velocity = ((curr.v - other->v) * direction) * direction;
 
         return - c * radial_velocity;
@@ -68,8 +68,8 @@ auto acceleration(
         if (not other) {
             return ph::force::zero();
         }
-        auto distance = curr.x - other->x;
-        auto direction = math::unit(distance);  // * (1. / ph::m);
+        auto Δx = curr.x - other->x;
+        auto direction = math::unit(Δx);
         auto tg = decltype(direction){direction[1], -direction[0]};
         auto tangential_velocity = ((curr.v - other->v) * tg) * tg;
         return - b * tangential_velocity;

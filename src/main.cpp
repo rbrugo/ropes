@@ -11,7 +11,6 @@
 #else
 struct SDL_Event {};
 #endif
-#include <fmt/ranges.h>
 #include <math.hpp>
 #include <thread>
 #include <structopt/app.hpp>
