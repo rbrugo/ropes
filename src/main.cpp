@@ -35,8 +35,6 @@ STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, fps, duration);
 int main(int argc, char * argv[]) try
 {
     auto options = structopt::app("ropes").parse<::options>(argc, argv);
-    // auto const n_points = argc > 1 ? std::stoi(argv[1]) : n;
-    // dump_settings(n_points);
 
     auto const settings = sym::settings{
         options.n.value(),
@@ -67,12 +65,12 @@ int main(int argc, char * argv[]) try
     };
 #endif
 
-    auto make_state = [&settings](int i) {
+    auto make_state = [&settings](int idx) {
         return ph::state{
-            .x = ph::position{settings.segment_length * i, 0. * ph::m},
+            .x = ph::position{settings.segment_length * idx, 0. * ph::m},
             .v = ph::velocity::zero(),
             .m = settings.segment_mass,
-            .fixed = i == 0
+            .fixed = idx == 0
         };
     };
 
@@ -81,23 +79,21 @@ int main(int argc, char * argv[]) try
               | std::ranges::to<std::vector>();
               ;
 
-    auto quit = false;
-    auto pause = false;
-    auto step = false;
+    auto [quit, pause, step] = std::array{false, false, false};
     auto scale = 5.0;
     auto offset = ph::vector<double>{400, 15};
     auto map_to_screen = [&scale, &offset](ph::position v) -> ph::vector<double> {
-        return v.transform([](auto x) { return x.numerical_value_in(ph::m); }) * scale + offset;
+        return v.transform([](auto x) static { return x.numerical_value_in(ph::m); }) * scale + offset;
     };
-    auto map_from_screen = [&scale, &offset](ph::vector<> x) -> ph::position {
+    auto map_from_screen = [&scale, &offset](ph::vector<> const & x) -> ph::position {
         return ((x - offset) / scale) * ph::m;
     };
 
 
     // Dragging section data
     struct mouse : math::vector<double, 2> {
-        double & x = (*this)[0];
-        double & y = (*this)[1];
+        [[nodiscard]] auto x() -> double & { return (*this)[0]; }
+        [[nodiscard]] auto y() -> double & { return (*this)[1]; }
         bool clicking = false;
     } mouse;
     struct dragged_info {
@@ -105,7 +101,7 @@ int main(int argc, char * argv[]) try
         bool was_fixed;
     };
     auto dragged = std::optional<dragged_info>{std::nullopt};
-    auto manually_fixed = std::vector<ssize_t>{};
+    auto manually_fixed = std::vector<ssize_t>{};  manually_fixed.reserve(5);
 
     auto const ΔT = 1. / settings.fps;
     auto const δt = settings.dt;
@@ -119,7 +115,7 @@ int main(int argc, char * argv[]) try
         clear_screen();
 
         // poll events
-        while (SDL_PollEvent(&event)) {
+        while (SDL_PollEvent(&event) != 0) {
             switch (event.type) {
             case SDL_QUIT:
                 quit = true;
@@ -167,8 +163,8 @@ int main(int argc, char * argv[]) try
                 // player.hook.length = std::clamp<physics::scalar>(player.hook.length, 5, 400);
                 break;
             case SDL_MOUSEMOTION:
-                mouse.x = event.motion.x;
-                mouse.y = event.motion.y;
+                mouse.x() = event.motion.x;
+                mouse.y() = event.motion.y;
                 if (dragged.has_value()) {
                     rope[dragged->index].x = map_from_screen(mouse);
                 }
