@@ -8,6 +8,7 @@
 #ifndef NO_GRAPHICS
 #include <SDL_keycode.h>
 #include "graphics.hpp"
+#include <GL/gl.h>
 #else
 struct SDL_Event {};
 #endif
@@ -32,7 +33,7 @@ struct options
 };
 STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, fps, duration);
 
-int main(int argc, char * argv[]) try
+int main(int argc, char * argv[]) try  // NOLINT
 {
     auto options = structopt::app("ropes").parse<::options>(argc, argv);
 
@@ -51,17 +52,17 @@ int main(int argc, char * argv[]) try
     dump_settings(settings);
 
 #ifndef NO_GRAPHICS
-    auto sdl_context = gfx::setup_SDL(800, 600);
-    auto & renderer = sdl_context.renderer;
+    constexpr auto screen_width = 800;
+    constexpr auto screen_height = 600;
+    auto sdl_context = gfx::setup_SDL(screen_width, screen_height);
+    auto & window = sdl_context.window;
 
-    [[maybe_unused]]
-    auto clear_screen = [&] {
-        SDL_SetRenderDrawColor(renderer.get(), 0xFF, 0xFF, 0xFF, 0xFF);
-        SDL_RenderClear(renderer.get());
+    auto clear_screen = [] static {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
     };
-    [[maybe_unused]]
-    auto update_screen = [&] {
-        SDL_RenderPresent(renderer.get());
+    auto update_screen = [&window] {
+        SDL_GL_SwapWindow(window.get());
     };
 #endif
 
@@ -80,15 +81,12 @@ int main(int argc, char * argv[]) try
               ;
 
     auto [quit, pause, step] = std::array{false, false, false};
-    auto scale = 5.0;
-    auto offset = ph::vector<double>{400, 15};
-    auto map_to_screen = [&scale, &offset](ph::position v) -> ph::vector<double> {
-        return v.transform([](auto x) static { return x.numerical_value_in(ph::m); }) * scale + offset;
-    };
-    auto map_from_screen = [&scale, &offset](ph::vector<> const & x) -> ph::position {
-        return ((x - offset) / scale) * ph::m;
-    };
 
+    auto config = gfx::screen_config {
+        .screen_size = {0, 0},
+        .scale = 5.0,
+        .offset = {0, 0}  // 400, 15
+    };
 
     // Dragging section data
     struct mouse : math::vector<double, 2> {
@@ -134,23 +132,23 @@ int main(int argc, char * argv[]) try
                     break;
                 case SDLK_PLUS:
                 case SDLK_KP_PLUS:
-                    scale += 0.1;
+                    config.scale += 0.1;
                     break;
                 case SDLK_MINUS:
                 case SDLK_KP_MINUS:
-                    scale -= 0.1;
+                    config.scale -= 0.1;
                     break;
                 case SDLK_UP:
-                    offset[1] -= 5;
+                    config.offset[1] -= 5;
                     break;
                 case SDLK_DOWN:
-                    offset[1] += 5;
+                    config.offset[1] += 5;
                     break;
                 case SDLK_LEFT:
-                    offset[0] -= 5;
+                    config.offset[0] -= 5;
                     break;
                 case SDLK_RIGHT:
-                    offset[0] += 5;
+                    config.offset[0] += 5;
                     break;
                 }
                 break;
@@ -166,7 +164,7 @@ int main(int argc, char * argv[]) try
                 mouse.x() = event.motion.x;
                 mouse.y() = event.motion.y;
                 if (dragged.has_value()) {
-                    rope[dragged->index].x = map_from_screen(mouse);
+                    rope[dragged->index].x = gfx::map_from_screen(config)(mouse);
                 }
                 break;
             case SDL_MOUSEBUTTONUP: {
@@ -181,7 +179,7 @@ int main(int argc, char * argv[]) try
                 break;
             }
             case SDL_MOUSEBUTTONDOWN: {
-                auto distance = [x0 = map_from_screen(mouse)](ph::position x) {
+                auto distance = [x0 = gfx::map_from_screen(config)(mouse)](ph::position x) {
                     return math::squared_norm(x - x0);
                 };
                 switch (event.button.button) {
@@ -209,7 +207,7 @@ int main(int argc, char * argv[]) try
                                    | std::views::transform(distance)
                                    ;
                         auto nearest_locked = std::ranges::min_element(fixed);
-                        if (not manually_fixed.empty() and (*nearest_locked).numerical_value_in(ph::m2) * scale <= 100*100) {
+                        if (not manually_fixed.empty() and (*nearest_locked).numerical_value_in(ph::m2) * config.scale <= 100*100) {
                             auto it = nearest_locked.base().base().base().base();
                             auto idx = *it;
                             rope[idx].fixed = false;
@@ -244,11 +242,21 @@ int main(int argc, char * argv[]) try
             step = false;
             // draw rope
 #ifndef NO_GRAPHICS
+            SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
+
+            // glBegin(GL_LINES);
+            // glVertex2f(0, 0);
+            // glVertex2f(0.f, 100.f / config.screen_size[1]);
+            // glEnd();
+            // glBegin(GL_LINES);
+            // glVertex2f(0, 0);
+            // glVertex2f(100.f / config.screen_size[0], 0.f);
+            // glEnd();
+
             auto const points = rope
                               | std::views::transform(&ph::state::x)
-                              | std::views::transform(map_to_screen)
                               ;
-            gfx::render(renderer, points, settings.segment_length.numerical_value_in(ph::m), scale);
+            gfx::render(points, settings.segment_length.numerical_value_in(ph::m), config);
 
             // redraw
             update_screen();

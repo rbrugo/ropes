@@ -8,82 +8,7 @@
 #ifndef SIMULATION_HPP
 #define SIMULATION_HPP
 
-#include <fmt/ranges.h>
-#include <fmt/std.h>
-#include <mp-units/ext/format.h>
-#include <mp-units/format.h>
-#include <math.hpp>
-#include <mp-units/systems/si.h>
-#include <mp-units/systems/isq/space_and_time.h>
-#include <mp-units/systems/si.h>
-#include <mp-units/math.h>
-#include <mp-units/systems/si/constants.h>
-
-template<class T, auto N>
-requires mp_units::is_scalar<T>
-inline constexpr bool mp_units::is_vector<math::vector<T, N>> = true;
-
-template <typename T, auto N, mp_units::Reference R>
-constexpr mp_units::Quantity auto operator *(math::vector<T, N> const & v, R) noexcept
-{ return mp_units::quantity{v, R{}}; }
-
-using namespace mp_units;
-
-namespace ph
-{
-using namespace mp_units::si::unit_symbols;
-
-template <typename T = double>
-using vector = math::vector<T, 2>;
-
-using mass = quantity<kg>;
-using duration = quantity<s>;
-using time = quantity<s>;
-using length = quantity<m>;
-using speed = quantity<m / s>;
-using magnitude_of_acceleration = quantity<m / s2>;
-
-using stiffness = quantity<N / m>;
-using damping_coefficient = quantity<N * s / m>;
-using linear_density = quantity<kg / m>;
-
-using position = vector<length>;
-using velocity = vector<speed>;
-using acceleration = vector<magnitude_of_acceleration>;
-using force = vector<quantity<N>>;
-
-using framerate = quantity<Hz>;
-
-struct state
-{
-    ph::position x;
-    ph::velocity v;
-    ph::mass m;
-    bool fixed = false;
-};
-
-struct derivative
-{
-    ph::velocity dx;
-    ph::acceleration dv;
-};
-}  // namespace ph
-
-template <> struct fmt::formatter<ph::state> : fmt::formatter<std::string_view>
-{
-    auto format(ph::state const & s, format_context & ctx) const {
-        auto const & [x, v, m, f] = s;
-        return fmt::format_to(ctx.out(), "x: {}, v: {}, m: {}, fixed: {}", x, v, m, f);
-    }
-};
-
-template <> struct fmt::formatter<ph::derivative> : fmt::formatter<std::string_view>
-{
-    auto format(ph::derivative const & s, format_context & ctx) const {
-        auto const & [dx, dv] = s;
-        return fmt::format_to(ctx.out(), "δx: {}, δv: {}", dx, dv);
-    }
-};
+#include <physics.hpp>
 
 namespace sym
 {
@@ -106,7 +31,7 @@ struct settings
     settings(
         int n_points,
         ph::stiffness k,
-        ph::damping_coefficient b,  // external / tangential
+        ph::damping_coefficient b,  // external / tangential  // NOLINT
         ph::damping_coefficient c,  // internal / radial
         ph::length total_length,
         ph::linear_density linear_density,
@@ -119,15 +44,14 @@ struct settings
         external_damping{b},
         internal_damping{c},
         total_length{total_length},
+        segment_length{total_length / (n_points - 1)},
         linear_density{linear_density},
+        segment_mass{linear_density * segment_length},
         t0{0 * ph::s},
         t1{t0 + duration},
         dt{dt},
         fps{framerate}
-    {
-        segment_length = total_length / (number_of_points - 1);
-        segment_mass = linear_density * segment_length;
-    }
+    { }
 };
 
 

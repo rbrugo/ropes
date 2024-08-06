@@ -273,12 +273,49 @@ constexpr inline struct sine_fn {
     { return (v1[0] * v2[1] - v1[1] * v2[0]) / (norm(v1) * norm(v2)); }
 } sine;
 
+constexpr inline struct hadamard_product_fn {
+    template <typename T, typename U = T, std::size_t N>
+    [[nodiscard]] static constexpr
+    auto operator()(vector<T, N> const & v1, vector<T, N> const & v2) noexcept
+    {
+        using R = decltype(std::declval<T const &>() * std::declval<U const &>());
+        return [&v1, &v2]<size_t ...I>(std::index_sequence<I...>) {
+            return vector<R, N>{R(std::get<I>(v1) * std::get<I>(v2))...};
+        }(std::make_index_sequence<N>{});
+    }
+} hadamard_product;
+
+constexpr inline struct hadamard_division_fn {
+    template <typename T, typename U = T, std::size_t N>
+    [[nodiscard]] static constexpr
+    auto operator()(vector<T, N> const & v1, vector<T, N> const & v2) noexcept
+    {
+        using R = decltype(std::declval<T const &>() / std::declval<U const &>());
+        return [&v1, &v2]<size_t ...I>(std::index_sequence<I...>) {
+            return vector<R, N>{R(std::get<I>(v1) / std::get<I>(v2))...};
+        }(std::make_index_sequence<N>{});
+    }
+} hadamard_division;
+
+constexpr inline struct hadamard_inverse_fn {
+    template <typename T, std::size_t N>
+    [[nodiscard]] static constexpr
+    auto operator()(vector<T, N> const & v) noexcept
+    {
+        using R = decltype(T{1.} / std::declval<T const &>());
+        return [&v]<size_t ...I>(std::index_sequence<I...>) {
+            return vector<R, N>{R(T{1} / std::get<I>(v))...};
+        }(std::make_index_sequence<N>{});
+    }
+} hadamard_inverse;
+
+
 }  // namespace math
 
 template <typename T, std::size_t N>
-struct std::tuple_size<math::vector<T, N>> : public std::tuple_size<std::array<T, N>> {};
+struct std::tuple_size<math::vector<T, N>> : public std::tuple_size<std::array<T, N>> {};  // NOLINT
 template <typename T, std::size_t N, std::size_t I>
-struct std::tuple_element<I, math::vector<T, N>> : public std::tuple_element<I, std::array<T, N>> {};
+struct std::tuple_element<I, math::vector<T, N>> : public std::tuple_element<I, std::array<T, N>> {};  // NOLINT
 
 // void test_math()
 // {
