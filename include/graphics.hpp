@@ -22,12 +22,14 @@ namespace gfx
 using window = std::unique_ptr<SDL_Window, void(*)(SDL_Window *)>;
 using renderer = std::unique_ptr<SDL_Renderer, void(*)(SDL_Renderer *)>;
 using gl_context = std::unique_ptr<void, void(*)(void *)>;
+using imgui_guard = nonstd::scope_exit<void (*)()>;
 
 struct SDL_stuff
 {
     std::array<nonstd::scope_exit<void(*)()>, 2> exit_guards;
     gfx::window window;
     gfx::gl_context gl_context;
+    gfx::imgui_guard imgui_guard;
 };
 
 struct screen_config
@@ -90,31 +92,31 @@ void draw_square(std::array<double, 2> const & p, math::vector<int, 2> screen_si
 }
 
 template <std::ranges::forward_range Rope>
-void render(Rope const & rope, double l0, screen_config const & config)
+void render(Rope const & rope, ph::length l0, screen_config const & config)
 {
     auto const points = rope | std::views::transform(map_to_screen(config));
     constexpr auto red = math::vector<uint8_t, 3>{0xff, 0, 0};
     constexpr auto blue = math::vector<uint8_t, 3>{0, 0, 0xff};
     constexpr auto c0 = (red + blue) / 2;
     constexpr auto c1 = (red - blue) / 2;
-    constexpr auto max = +0.2;
-    constexpr auto min = -max;
+    auto max = 0.1 * l0;
+    auto min = -max;
 
     auto const size = std::ssize(points);
 
     for (auto i = 0; i < size; ++i) {
-        auto length = 0.;
+        auto length = 0. * ph::m;
         if (i != 0) {
-            length += math::norm(points[i - 1] - points[i]) - l0 * config.scale;
+            length += math::norm(rope[i - 1] - rope[i]) - l0;
         }
         if (i + 1 < size) {
-            length += math::norm(points[i] - points[i + 1]) - l0 * config.scale;
+            length += math::norm(rope[i] - rope[i + 1]) - l0;
         }
 
         length = std::clamp(length, min, max);
-        auto c = (c0 + std::pow(length / max, 2) * c1);
+        auto c = (c0 + std::pow((length / max).numerical_value_in(one), 2) * c1);
 
-        glColor3f(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f);  // NOLINT
+        glColor3ub(c[0], c[1], c[2]);  // NOLINT
         if (i != 0) {
             glBegin(GL_LINES);
             glVertex2f(points[i - 1][0], points[i - 1][1]);

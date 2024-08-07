@@ -47,6 +47,7 @@ using position = vector<length>;
 using velocity = vector<speed>;
 using acceleration = vector<magnitude_of_acceleration>;
 using force = vector<quantity<N>>;
+using energy = quantity<J>;
 
 using framerate = quantity<Hz>;
 

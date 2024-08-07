@@ -130,13 +130,14 @@ auto integrate(
 
 void dump_settings(sym::settings const & settings) noexcept {
     auto const & [n, k, b, c, total_length, segment_length, linear_density, segment_mass, t0, t1, dt, fps] = settings;
-    auto const g = (1. * mp_units::si::standard_gravity).in(ph::m / ph::s2);
+    auto const g = (1. * mp_units::si::standard_gravity).in(ph::N / ph::kg);
     fmt::print("Number of points (n):             {}\n", n);
     fmt::print("Elastic constant (k):             {}\n", k);
     fmt::print("External damping coefficient (b): {}\n", b);
     fmt::print("internal damping coefficient (c): {}\n", c);
-    fmt::print("Total length:                     {}\n", total_length);
     fmt::print("Linear density:                   {}\n", linear_density);
+    fmt::print("Total length:                     {}\n", total_length);
+    fmt::print("Total mass:                       {}\n", total_length * linear_density);
     fmt::print("Segment length:                   {}\n", segment_length);
     fmt::print("Segment mass:                     {}\n", segment_mass);
     fmt::print("\n");

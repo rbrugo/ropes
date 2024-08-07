@@ -29,6 +29,7 @@ find_package(fmt REQUIRED)
 find_package(mp-units REQUIRED)
 find_package(scope-lite REQUIRED)
 find_package(structopt REQUIRED)
+find_package(imgui REQUIRED)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                             Enable warnings                            #
@@ -41,21 +42,25 @@ set_project_warnings(project_warnings)
 #                                  SDL2                                  #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 find_package(SDL2 REQUIRED)
-find_package(SDL2_image REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(OpenGL REQUIRED)
 add_library(SDL_collection)
-target_sources(SDL_collection PRIVATE src/graphics.cpp)
+target_sources(SDL_collection
+    PRIVATE
+        src/graphics.cpp
+        src/imgui_impl_sdl2.cpp src/imgui_impl_opengl3.cpp
+)
 target_compile_features(SDL_collection PUBLIC cxx_std_23)
 target_compile_definitions(SDL_collection PUBLIC MP_UNITS_API_STD_FORMAT=0)
 target_link_libraries(SDL_collection
     PUBLIC
         fmt::fmt nonstd::scope-lite mp-units::mp-units
-        SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf
+        SDL2::SDL2 SDL2_ttf::SDL2_ttf imgui::imgui
         OpenGL::OpenGL
 )
 target_include_directories(SDL_collection PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 target_link_options(SDL_collection PRIVATE -fuse-ld=mold)
+# find_package(SDL2_image REQUIRED)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 ropes                                  #
@@ -68,7 +73,8 @@ target_compile_definitions(ropes PUBLIC MP_UNITS_API_STD_FORMAT=0)
 target_link_libraries(ropes
     PRIVATE
         fmt::fmt mp-units::mp-units structopt::structopt
-        SDL_collection project_warnings
+        SDL_collection imgui::imgui
+        project_warnings
 )
 target_link_options(ropes PRIVATE -fuse-ld=mold)
 target_include_directories(ropes PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")

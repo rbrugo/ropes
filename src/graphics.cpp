@@ -14,8 +14,24 @@
 #include <SDL2/SDL_ttf.h>
 #include <experimental/scope>
 
+#include <imgui.h>
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
+
 namespace gfx
 {
+
+[[nodiscard]]
+auto setup_imgui(auto const & glsl_version, auto const & window, auto const & gl_context)
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    // auto & io = ImGui::GetIO();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplSDL2_InitForOpenGL(window.get(), gl_context.get());
+    ImGui_ImplOpenGL3_Init(glsl_version);
+}
 
 [[nodiscard]]
 auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff
@@ -65,9 +81,16 @@ auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff
     }
     SDL_GL_MakeCurrent(window.get(), gl_context.get());
     SDL_GL_SetSwapInterval(1);
+
+    setup_imgui(glsl_version, window, gl_context);
+
     return {
         { std::move(_1), std::move(_2) },
-        std::move(window), std::move(gl_context)
+        std::move(window), std::move(gl_context), nonstd::scope_exit{+[] static {
+            ImGui_ImplOpenGL3_Shutdown();
+            ImGui_ImplSDL2_Shutdown();
+            ImGui::DestroyContext();
+        }}
     };
 }
 

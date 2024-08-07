@@ -9,15 +9,43 @@
 #include <SDL_keycode.h>
 #include "graphics.hpp"
 #include <GL/gl.h>
+
+#include <imgui.h>
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
 #else
 struct SDL_Event {};
 #endif
 #include <math.hpp>
+#include <mp-units/math.h>
 #include <thread>
 #include <structopt/app.hpp>
 
 #include "simulation.hpp"
 #include <mp-units/systems/si/chrono.h>
+
+template <typename Fn, typename ...Ts>
+void for_each(std::tuple<Ts...> const & arg, Fn const & fn) {
+    auto impl = [&arg, &fn]<int I>(this auto & self, std::integral_constant<int, I>) {
+        if constexpr (I < sizeof...(Ts)) {
+            fn(std::get<I>(arg));
+            self(std::integral_constant<int, I+1>{});
+        }
+    };
+    impl(std::integral_constant<int, 0>{});
+}
+
+template <typename Fn, typename ...Ts>
+void draw_window(char const * const title, Fn && fn, Ts ...size) {
+    if constexpr (sizeof...(size) == 2) {
+        ImGui::SetNextWindowSize(ImVec2(size...));
+    } else {
+        static_assert(sizeof...(size) == 0, "Size args must be 0 or 2");
+    }
+    ImGui::Begin(title);
+    std::forward<decltype(fn)>(fn)();
+    ImGui::End();
+}
 
 struct options
 {
@@ -84,9 +112,10 @@ int main(int argc, char * argv[]) try  // NOLINT
 
     auto config = gfx::screen_config {
         .screen_size = {0, 0},
-        .scale = 5.0,
-        .offset = {0, 0}  // 400, 15
+        .scale = 10.0,
+        .offset = {0, -480}  // 400, 15
     };
+    auto steps = 0;
 
     // Dragging section data
     struct mouse : math::vector<double, 2> {
@@ -114,6 +143,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 
         // poll events
         while (SDL_PollEvent(&event) != 0) {
+            ImGui_ImplSDL2_ProcessEvent(&event);
             switch (event.type) {
             case SDL_QUIT:
                 quit = true;
@@ -168,6 +198,9 @@ int main(int argc, char * argv[]) try  // NOLINT
                 }
                 break;
             case SDL_MOUSEBUTTONUP: {
+                if (ImGui::GetIO().WantCaptureMouse) {
+                    break;
+                }
                 switch (event.button.button) {
                     case SDL_BUTTON_LEFT: {
                         if (dragged.has_value()) {
@@ -179,6 +212,9 @@ int main(int argc, char * argv[]) try  // NOLINT
                 break;
             }
             case SDL_MOUSEBUTTONDOWN: {
+                if (ImGui::GetIO().WantCaptureMouse) {
+                    break;
+                }
                 auto distance = [x0 = gfx::map_from_screen(config)(mouse)](ph::position x) {
                     return math::squared_norm(x - x0);
                 };
@@ -256,7 +292,91 @@ int main(int argc, char * argv[]) try  // NOLINT
             auto const points = rope
                               | std::views::transform(&ph::state::x)
                               ;
-            gfx::render(points, settings.segment_length.numerical_value_in(ph::m), config);
+            gfx::render(points, settings.segment_length, config);
+
+
+            /** IMGUI **/
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL2_NewFrame();
+            ImGui::NewFrame();
+
+
+
+            draw_window("Data", [&] {
+                auto const points = rope
+                                  | std::views::transform(&ph::state::x)
+                                  ;
+                constexpr auto distance = [](auto && segment) {
+                    auto [x, y] = segment;
+                    return math::norm(x - y);
+                };
+                auto const framerate = 1. * ImGui::GetIO().Framerate * ph::Hz;
+                auto energy = [l=settings.segment_length,k=settings.elastic_constant](auto && segment) {
+                    static auto elongation = [l](auto const & p, auto const & q) {
+                        auto const delta = p - q;
+                        auto const norm = math::norm(delta);
+                        if (abs(norm) < 0.0001 * ph::m) {
+                            return ph::position{0 * ph::m, 0 * ph::m};
+                        }
+                        return delta - l * delta * (1. / norm);
+                    };
+                    auto [a, b] = segment;
+                    auto d = elongation(a.x, b.x);
+                    mp_units::QuantityOf<isq::energy> auto kinetic = b.m * math::squared_norm(b.v) / 2;
+                    mp_units::QuantityOf<isq::energy> auto elastic = k * d * d / 2;
+                    mp_units::QuantityOf<isq::energy> auto gravitational = - (b.m * mp_units::si::standard_gravity * b.x[1]).in(ph::J);
+                    return math::vector<ph::energy, 2>{kinetic, elastic + gravitational};
+                };
+                auto total_len = std::ranges::fold_left(
+                    std::views::adjacent<2>(points) |
+                    std::views::transform(distance),
+                    0. * ph::m,
+                    std::plus{}
+                );
+                auto [kinetic_energy, potential_energy] = std::ranges::fold_left(
+                    std::views::adjacent<2>(rope) |
+                    std::views::transform(energy),
+                    math::vector<ph::energy, 2>::zero(),
+                    std::plus{}
+                );
+
+                constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
+                auto const args = std::tuple{
+                    std::tuple{"Framerate", framerate},
+                    std::tuple{"Steps per frame", steps * mp_units::one},
+                    std::tuple{"Length", total_len},
+                    std::tuple{"Kinetic energy", kinetic_energy},
+                    std::tuple{"Potential energy", potential_energy},
+                    std::tuple{"Total energy", (kinetic_energy + potential_energy)}
+                };
+
+                auto print_line = [](auto const & args) static {
+                    auto const [name, value] = args;
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", name);
+                    ImGui::TableNextColumn();
+                    auto unit = value.unit;
+                    auto amount = value.numerical_value_in(unit);
+                    if constexpr (std::same_as<decltype(amount), int>) {
+                        ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());
+                    } else {
+                        ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());
+                    }
+                };
+
+                constexpr auto columns = std::tuple_size_v<std::tuple_element_t<0, decltype(args)>>;
+                if (ImGui::BeginTable("Some data", columns, table_flags)) {
+                    for_each(args, print_line);
+                    ImGui::EndTable();
+                }
+            });
+
+            // ImGui::ShowDemoWindow();
+
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 
             // redraw
             update_screen();
@@ -264,8 +384,10 @@ int main(int argc, char * argv[]) try  // NOLINT
 
             // update the simulation
             auto Δt = ph::duration::zero();
+            steps = 0;
             for (; Δt < ΔT; Δt += δt) {
                 rope = sym::integrate(settings, rope, t + Δt, δt);
+                ++steps;
             }
             t += Δt;
         }
