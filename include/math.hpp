@@ -165,6 +165,18 @@ struct vector : std::array<T, N>, public arithmetic
     constexpr auto operator-() const noexcept { return auto{*this} *= -1; }
 
     static constexpr auto zero() noexcept { return vector{}; }
+    static constexpr auto one() noexcept {
+        static constexpr auto unit = [] {
+            if constexpr (requires { { T::one() }; }) {
+                return T::one();
+            } else {
+                return T{1};
+            }
+        }();
+        return []<size_t ...I>(std::index_sequence<I...>) static {
+            return vector{((void)I, unit)...};
+        }(std::make_index_sequence<N>{});
+    }
 
     constexpr bool operator==(vector const &) const = default;
 
@@ -190,6 +202,7 @@ struct vector : std::array<T, N>, public arithmetic
 };
 
 static_assert(vector<int, 2>::zero() == vector<int, 2>{0, 0});
+static_assert(vector<int, 2>::one() == vector<int, 2>{1, 1});
 static_assert(vector<int, 2>{1, 2} + vector<int, 2>{3, 4} == vector<int, 2>{4, 6});
 consteval auto convert(vector<int, 2> x) -> vector<double, 2> { return x; }
 

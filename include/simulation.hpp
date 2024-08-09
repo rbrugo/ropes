@@ -12,6 +12,10 @@
 
 namespace sym
 {
+// TODO: replace stiffness k with Young modulus E; introduce section area
+// in that case: k = E * A / l₀ (A cross section, l₀ rest length of the segment)
+// NOTE: this is ideal, meaning the k computed is ~10 times smaller than the realistic one
+// TODO: introduce temperature for graphics and, maybe, to change k or E (if significant)
 struct settings
 {
     int number_of_points;

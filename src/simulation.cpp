@@ -10,8 +10,34 @@
 #include <mp-units/format.h>
 #include <mp-units/ext/format.h>
 #include <mp-units/math.h>
+#include <numbers>
 
 namespace sym {
+
+template <typename T>
+[[nodiscard]] constexpr
+auto radius_given_three_points(math::vector<T, 2> p1, math::vector<T, 2> p2, math::vector<T, 2> p3)
+    -> std::optional<T>
+{
+    // Circumrcircle formula
+
+    auto const Δr12 = math::norm(p1 - p2);
+    auto const Δr23 = math::norm(p2 - p3);
+    auto const Δr13 = math::norm(p1 - p3);
+
+    // Shoelace formula
+    auto const A = (
+            p1[0] * (p2[1] - p3[1]) +
+            p2[0] * (p3[1] - p1[1]) +
+            p3[0] * (p1[1] - p2[1])
+    ) / 2.;
+
+    if (A == A * 0) {
+        return std::nullopt;
+    }
+
+    return Δr12 * Δr23 * Δr13 / (4 * A);
+}
 
 auto acceleration(
     sym::settings const & settings,
@@ -75,16 +101,56 @@ auto acceleration(
         return - b * tangential_velocity;
     };
 
+    /** Bending stiffness / Flexural rigidity **/
+    // Second moment of area: I = ∫y²dA = π(r₁⁴ - r₀⁴) / 4 for a hollow circular cross-section
+    // Bending stiffness: E·I
+    // Curvature: κ = 1 / R
+    // Bending moment: M = EIκ
+    // Direction: perpendicular to the tangent
+    // >> To compute the force:
+    // Δx1 = b - a
+    // Δx2 = c - b
+    // Δs = (|Δx1| + |Δx2|) / 2
+    // |F| = M / Δs
+    // t = (Δx1 + Δx2) / |Δx1 + Δx2|
+    // dir = (t[1], -t[0])
+    // F = |F| * dir
+    static auto bending_stiffness_force = [](ph::state const * const prev, ph::state const & current, ph::state const * const next) -> ph::force {
+        if (not next or not prev) {
+            return ph::force::zero();
+        }
+        auto const radius = radius_given_three_points(prev->x, current.x, next->x);
+        if (not radius) {
+            return ph::force::zero();
+        }
+        auto const κ = 1. / *radius;
+        auto const r = 0.6 * ph::cm;  // rope section radius
+        auto const I = std::numbers::pi * r * r * r * r / 4;  // second moment of area
+        auto const E = 1. * ph::GPa;  // Young modulus
+        auto const bending_moment = E * I * κ;
+
+        auto const Δx1 = prev->x - current.x;
+        auto const Δx2 = current.x - next->x;
+
+        auto const nΔx1 = math::norm(Δx1);
+        auto const nΔx2 = math::norm(Δx2);
+
+        auto modulus = 2 * bending_moment / (nΔx1 + nΔx2);  // using the full arc length
+
+        auto const t = math::unit(Δx1 + Δx2);  // using the weighted direction
+
+        return modulus * math::vector{-t[1], t[0]};
+    };
+
     auto const elastic = elastic_force(current, prev) + elastic_force(current, next);
     auto const gravitational = gravitational_force(current);
 
-    // auto const damping = - b * current.v;
     auto const damping = internal_damping(current, prev) + internal_damping(current, next)
                        + external_damping(current, prev) + external_damping(current, next);
 
-    // TODO: bending stiffness (I can't bend a rope 180°, it tries to straighten)
+    auto const bending_stiffness = bending_stiffness_force(prev, current, next);
 
-    return (elastic + gravitational + damping) * (1. / current.m);
+    return (elastic + gravitational + damping + bending_stiffness) * (1. / current.m);
 }
 
 auto integrate(
