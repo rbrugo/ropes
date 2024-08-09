@@ -274,114 +274,114 @@ int main(int argc, char * argv[]) try  // NOLINT
         }
 #endif
 
-        if (not pause or step) {
-            step = false;
             // draw rope
 #ifndef NO_GRAPHICS
-            SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
+        SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
 
-            // glBegin(GL_LINES);
-            // glVertex2f(0, 0);
-            // glVertex2f(0.f, 100.f / config.screen_size[1]);
-            // glEnd();
-            // glBegin(GL_LINES);
-            // glVertex2f(0, 0);
-            // glVertex2f(100.f / config.screen_size[0], 0.f);
-            // glEnd();
+        // glBegin(GL_LINES);
+        // glVertex2f(0, 0);
+        // glVertex2f(0.f, 100.f / config.screen_size[1]);
+        // glEnd();
+        // glBegin(GL_LINES);
+        // glVertex2f(0, 0);
+        // glVertex2f(100.f / config.screen_size[0], 0.f);
+        // glEnd();
 
+        auto const points = rope
+                          | std::views::transform(&ph::state::x)
+                          ;
+        gfx::render(points, settings.segment_length, config);
+
+
+        /** IMGUI **/
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+
+
+        draw_window("Data", [&] {
             auto const points = rope
                               | std::views::transform(&ph::state::x)
                               ;
-            gfx::render(points, settings.segment_length, config);
-
-
-            /** IMGUI **/
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplSDL2_NewFrame();
-            ImGui::NewFrame();
-
-
-
-            draw_window("Data", [&] {
-                auto const points = rope
-                                  | std::views::transform(&ph::state::x)
-                                  ;
-                constexpr auto distance = [](auto && segment) {
-                    auto [x, y] = segment;
-                    return math::norm(x - y);
-                };
-                auto const framerate = 1. * ImGui::GetIO().Framerate * ph::Hz;
-                auto energy = [l=settings.segment_length,k=settings.elastic_constant](auto && segment) {
-                    static auto elongation = [l](auto const & p, auto const & q) {
-                        auto const delta = p - q;
-                        auto const norm = math::norm(delta);
-                        if (abs(norm) < 0.0001 * ph::m) {
-                            return ph::position{0 * ph::m, 0 * ph::m};
-                        }
-                        return delta - l * delta * (1. / norm);
-                    };
-                    auto [a, b] = segment;
-                    auto d = elongation(a.x, b.x);
-                    mp_units::QuantityOf<isq::energy> auto kinetic = b.m * math::squared_norm(b.v) / 2;
-                    mp_units::QuantityOf<isq::energy> auto elastic = k * d * d / 2;
-                    mp_units::QuantityOf<isq::energy> auto gravitational = - (b.m * mp_units::si::standard_gravity * b.x[1]).in(ph::J);
-                    return math::vector<ph::energy, 2>{kinetic, elastic + gravitational};
-                };
-                auto total_len = std::ranges::fold_left(
-                    std::views::adjacent<2>(points) |
-                    std::views::transform(distance),
-                    0. * ph::m,
-                    std::plus{}
-                );
-                auto [kinetic_energy, potential_energy] = std::ranges::fold_left(
-                    std::views::adjacent<2>(rope) |
-                    std::views::transform(energy),
-                    math::vector<ph::energy, 2>::zero(),
-                    std::plus{}
-                );
-
-                constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
-                auto const args = std::tuple{
-                    std::tuple{"Framerate", framerate},
-                    std::tuple{"Steps per frame", steps * mp_units::one},
-                    std::tuple{"Length", total_len},
-                    std::tuple{"Kinetic energy", kinetic_energy},
-                    std::tuple{"Potential energy", potential_energy},
-                    std::tuple{"Total energy", (kinetic_energy + potential_energy)}
-                };
-
-                auto print_line = [](auto const & args) static {
-                    auto const [name, value] = args;
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", name);
-                    ImGui::TableNextColumn();
-                    auto unit = value.unit;
-                    auto amount = value.numerical_value_in(unit);
-                    if constexpr (std::same_as<decltype(amount), int>) {
-                        ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());
-                    } else {
-                        ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());
+            constexpr auto distance = [](auto && segment) {
+                auto [x, y] = segment;
+                return math::norm(x - y);
+            };
+            auto const framerate = 1. * ImGui::GetIO().Framerate * ph::Hz;
+            auto energy = [l=settings.segment_length,k=settings.elastic_constant](auto && segment) {
+                static auto elongation = [l](auto const & p, auto const & q) {
+                    auto const delta = p - q;
+                    auto const norm = math::norm(delta);
+                    if (abs(norm) < 0.0001 * ph::m) {
+                        return ph::position{0 * ph::m, 0 * ph::m};
                     }
+                    return delta - l * delta * (1. / norm);
                 };
+                auto [a, b] = segment;
+                auto d = elongation(a.x, b.x);
+                mp_units::QuantityOf<isq::energy> auto kinetic = b.m * math::squared_norm(b.v) / 2;
+                mp_units::QuantityOf<isq::energy> auto elastic = k * d * d / 2;
+                mp_units::QuantityOf<isq::energy> auto gravitational = - (b.m * mp_units::si::standard_gravity * b.x[1]).in(ph::J);
+                return math::vector<ph::energy, 2>{kinetic, elastic + gravitational};
+            };
+            auto total_len = std::ranges::fold_left(
+                std::views::adjacent<2>(points) |
+                std::views::transform(distance),
+                0. * ph::m,
+                std::plus{}
+            );
+            auto [kinetic_energy, potential_energy] = std::ranges::fold_left(
+                std::views::adjacent<2>(rope) |
+                std::views::transform(energy),
+                math::vector<ph::energy, 2>::zero(),
+                std::plus{}
+            );
 
-                constexpr auto columns = std::tuple_size_v<std::tuple_element_t<0, decltype(args)>>;
-                if (ImGui::BeginTable("Some data", columns, table_flags)) {
-                    for_each(args, print_line);
-                    ImGui::EndTable();
+            constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
+            auto const args = std::tuple{
+                std::tuple{"Framerate", framerate},
+                std::tuple{"Steps per frame", steps * mp_units::one},
+                std::tuple{"Length", total_len},
+                std::tuple{"Kinetic energy", kinetic_energy},
+                std::tuple{"Potential energy", potential_energy},
+                std::tuple{"Total energy", (kinetic_energy + potential_energy)}
+            };
+
+            auto print_line = [](auto const & args) static {
+                auto const [name, value] = args;
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", name);
+                ImGui::TableNextColumn();
+                auto unit = value.unit;
+                auto amount = value.numerical_value_in(unit);
+                if constexpr (std::same_as<decltype(amount), int>) {
+                    ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());
+                } else {
+                    ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());
                 }
-            });
+            };
 
-            // ImGui::ShowDemoWindow();
+            constexpr auto columns = std::tuple_size_v<std::tuple_element_t<0, decltype(args)>>;
+            if (ImGui::BeginTable("Some data", columns, table_flags)) {
+                for_each(args, print_line);
+                ImGui::EndTable();
+            }
+        });
 
-            ImGui::Render();
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        ImGui::ShowDemoWindow();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 
-            // redraw
-            update_screen();
+        // redraw
+        update_screen();
 #endif
 
+        if (not pause or step) {
+            step = false;
             // update the simulation
             auto Δt = ph::duration::zero();
             steps = 0;
