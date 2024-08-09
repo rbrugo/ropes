@@ -10,12 +10,16 @@
 
 #include <ranges>
 #include <memory>
+#include <nonstd/scope.hpp>
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
-#include <nonstd/scope.hpp>
+#include <imgui.h>
 
 #include <math.hpp>
 #include <physics.hpp>
+
+namespace sym { struct settings; }
 
 namespace gfx
 {
@@ -126,6 +130,32 @@ void render(Rope const & rope, ph::length l0, screen_config const & config)
         draw_square(points[i], config.screen_size);
     }
 }
+
+template <typename Fn, typename ...Ts>
+void draw_window(char const * const title, Fn && fn, Ts ...size) {
+    if constexpr (sizeof...(size) == 2) {
+        ImGui::SetNextWindowSize(ImVec2(size...));
+    } else {
+        static_assert(sizeof...(size) == 0, "Size args must be 0 or 2");
+    }
+    ImGui::Begin(title);
+    std::forward<decltype(fn)>(fn)();
+    ImGui::End();
+}
+
+template <typename Fn>
+void tree_node(char const * title, Fn && fn) {
+    if (ImGui::TreeNode(title)) {
+        std::forward<Fn>(fn)();
+        ImGui::TreePop();
+    }
+}
+
+struct forces_ui_fn {
+    sym::settings * settings;
+    explicit forces_ui_fn(sym::settings & settings) : settings{std::addressof(settings)} {};
+    void operator()() const noexcept;
+};
 
 } // namespace gfx
 

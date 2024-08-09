@@ -18,6 +18,8 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
+#include <simulation.hpp>
+
 namespace gfx
 {
 
@@ -93,6 +95,71 @@ auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff
         }}
     };
 }
+
+void forces_ui_fn::operator()() const noexcept
+{
+#define MAYBE_ENABLED(cond, fn) /* NOLINT */ \
+    if (not (cond)) { \
+        ImGui::BeginDisabled(); \
+        (fn); \
+        ImGui::EndDisabled(); \
+    } else { \
+        (fn); \
+    }
+#define REF(arg, unit) &settings->arg.numerical_value_ref_in(unit)  // NOLINT
+
+    auto & enable = settings->enabled;
+
+    gfx::tree_node("Elastic force", [&] {
+        constexpr auto min = 0.;
+        constexpr auto max = 10'000.;
+        ImGui::Checkbox("Enable force", &enable.elastic);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+        MAYBE_ENABLED(
+            enable.elastic,
+            ImGui::SliderScalar("Elastic constant (k)", ImGuiDataType_Double, REF(elastic_constant, ph::N / ph::m), &min, &max, "%.2lf N/m")
+        );
+        if (ImGui::Button("Reset")) {
+            settings->elastic_constant = sym::constants::k; // FIXME: real value is set on startup
+        }
+    });
+    gfx::tree_node("Gravity", [&] {
+        ImGui::Checkbox("Enable force", &enable.gravity);
+    });
+    gfx::tree_node("External damping", [&] {
+        constexpr auto min = 0.;
+        constexpr auto max = 1.;
+        ImGui::Checkbox("Enable force", &enable.external_damping);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+        MAYBE_ENABLED(
+            enable.external_damping,
+            ImGui::SliderScalar("Internal damping (b)", ImGuiDataType_Double, REF(external_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
+        );
+        if (ImGui::Button("Reset")) {
+            settings->external_damping = sym::constants::b; // FIXME: real value is set on startup
+        }
+    });
+    gfx::tree_node("Internal damping", [&] {
+        constexpr auto min = 0.;
+        constexpr auto max = 1.;
+        ImGui::Checkbox("Enable force", &enable.internal_damping);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+        MAYBE_ENABLED(
+            enable.internal_damping,
+            ImGui::SliderScalar("Internal damping (c)", ImGuiDataType_Double, REF(internal_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
+        );
+        if (ImGui::Button("Reset")) {
+            settings->internal_damping = sym::constants::c; // FIXME: real value is set on startup
+        }
+    });
+    gfx::tree_node("Flexural rigidity", [&] {
+        ImGui::Checkbox("Enable force", &enable.flexural_rigidity);
+    });
+
+    #undef REF
+    #undef MAYBE_ENABLED
+}
+
 
 // void draw_arrow(
 //     gfx::renderer & renderer,

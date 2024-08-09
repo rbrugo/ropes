@@ -51,6 +51,9 @@ auto acceleration(
         return ph::acceleration::zero();
     }
 
+    constexpr static auto zero = ph::force::zero();
+    auto const & enabled = settings.enabled;
+
     auto const segment_length = settings.segment_length;
     auto const k = settings.elastic_constant;
     auto const b = settings.external_damping;
@@ -65,23 +68,23 @@ auto acceleration(
         return delta - segment_length * delta * (1. / norm);
     };
 
-    static auto elastic_force = [k](ph::state const & curr, ph::state const * const other) {
+    auto const elastic_force = [k](ph::state const & curr, ph::state const * const other) {
         if (not other) {
-            return ph::force{0 * ph::N, 0 * ph::N};
+            return zero;
         }
         return - k * distance(curr.x, other->x);
     };
 
     static constexpr auto gravitational_force = [](ph::state const & curr) static {
         if (curr.fixed) {
-            return ph::force::zero();
+            return zero;
         }
         return ph::force{0 * ph::N, (curr.m * mp_units::si::standard_gravity).in(ph::N)};
     };
 
     static auto internal_damping = [c](ph::state const & curr, ph::state const * const other) {
         if (not other) {
-            return ph::force::zero();
+            return zero;
         }
         auto Δx = curr.x - other->x;
         auto direction = math::unit(Δx);
@@ -92,7 +95,7 @@ auto acceleration(
 
     static auto external_damping = [b](ph::state const & curr, ph::state const * const other) {
         if (not other) {
-            return ph::force::zero();
+            return zero;
         }
         auto Δx = curr.x - other->x;
         auto direction = math::unit(Δx);
@@ -117,11 +120,11 @@ auto acceleration(
     // F = |F| * dir
     static auto bending_stiffness_force = [](ph::state const * const prev, ph::state const & current, ph::state const * const next) -> ph::force {
         if (not next or not prev) {
-            return ph::force::zero();
+            return zero;
         }
         auto const radius = radius_given_three_points(prev->x, current.x, next->x);
         if (not radius) {
-            return ph::force::zero();
+            return zero;
         }
         auto const κ = 1. / *radius;
         auto const r = 0.6 * ph::cm;  // rope section radius
@@ -135,20 +138,25 @@ auto acceleration(
         auto const nΔx1 = math::norm(Δx1);
         auto const nΔx2 = math::norm(Δx2);
 
-        auto modulus = 2 * bending_moment / (nΔx1 + nΔx2);  // using the full arc length
+        auto const modulus = 2 * bending_moment / (nΔx1 + nΔx2);  // using the full arc length
 
         auto const t = math::unit(Δx1 + Δx2);  // using the weighted direction
 
         return modulus * math::vector{-t[1], t[0]};
     };
 
-    auto const elastic = elastic_force(current, prev) + elastic_force(current, next);
-    auto const gravitational = gravitational_force(current);
+    auto const elastic = enabled.elastic
+                       ? elastic_force(current, prev) + elastic_force(current, next)
+                       : zero;
+    auto const gravitational = enabled.gravity ? gravitational_force(current) : zero;
 
-    auto const damping = internal_damping(current, prev) + internal_damping(current, next)
-                       + external_damping(current, prev) + external_damping(current, next);
+    auto const damping = 
+        (enabled.internal_damping ? internal_damping(current, prev) + internal_damping(current, next) : zero) +
+        (enabled.external_damping ? external_damping(current, prev) + external_damping(current, next) : zero);
 
-    auto const bending_stiffness = bending_stiffness_force(prev, current, next);
+    auto const bending_stiffness = enabled.flexural_rigidity
+                                 ? bending_stiffness_force(prev, current, next)
+                                 : zero;
 
     return (elastic + gravitational + damping + bending_stiffness) * (1. / current.m);
 }
@@ -195,7 +203,12 @@ auto integrate(
 }  // namespace sym
 
 void dump_settings(sym::settings const & settings) noexcept {
-    auto const & [n, k, b, c, total_length, segment_length, linear_density, segment_mass, t0, t1, dt, fps] = settings;
+    auto const & [
+        n, k, b, c,
+        total_length, segment_length, linear_density, segment_mass,
+        t0, t1, dt, fps,
+        enabled
+    ] = settings;
     auto const g = (1. * mp_units::si::standard_gravity).in(ph::N / ph::kg);
     fmt::print("Number of points (n):             {}\n", n);
     fmt::print("Elastic constant (k):             {}\n", k);
@@ -215,5 +228,12 @@ void dump_settings(sym::settings const & settings) noexcept {
     fmt::print("Simulation time-step:             {}\n", dt);
     fmt::print("Frames per second:                {}\n", fps);
     fmt::print("Steps per frame:                  {}\n", dt * fps);
+    fmt::print("\n");
+    fmt::print("Forces enabled:\n");
+    fmt::print("Gravity:                          {}\n", enabled.gravity);
+    fmt::print("Elastic:                          {}\n", enabled.elastic);
+    fmt::print("Internal damping:                 {}\n", enabled.internal_damping);
+    fmt::print("External damping:                 {}\n", enabled.external_damping);
+    fmt::print("Flexural rigidity:                {}\n", enabled.flexural_rigidity);
     fmt::print("\n");
 }

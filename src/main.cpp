@@ -35,16 +35,9 @@ void for_each(std::tuple<Ts...> const & arg, Fn const & fn) {
     impl(std::integral_constant<int, 0>{});
 }
 
-template <typename Fn, typename ...Ts>
-void draw_window(char const * const title, Fn && fn, Ts ...size) {
-    if constexpr (sizeof...(size) == 2) {
-        ImGui::SetNextWindowSize(ImVec2(size...));
-    } else {
-        static_assert(sizeof...(size) == 0, "Size args must be 0 or 2");
-    }
-    ImGui::Begin(title);
-    std::forward<decltype(fn)>(fn)();
-    ImGui::End();
+auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
+{
+    return gfx::forces_ui_fn{settings};
 }
 
 struct options
@@ -65,7 +58,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 {
     auto options = structopt::app("ropes").parse<::options>(argc, argv);
 
-    auto const settings = sym::settings{
+    auto settings = sym::settings{
         options.n.value(),
         options.k.value() * ph::N / ph::m,
         options.b.value() * ph::N * ph::s / ph::m,
@@ -299,8 +292,7 @@ int main(int argc, char * argv[]) try  // NOLINT
         ImGui::NewFrame();
 
 
-
-        draw_window("Data", [&] {
+        gfx::draw_window("Data", [&] {
             auto const points = rope
                               | std::views::transform(&ph::state::x)
                               ;
@@ -352,14 +344,14 @@ int main(int argc, char * argv[]) try  // NOLINT
                 auto const [name, value] = args;
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", name);
+                ImGui::Text("%s", name);  // NOLINT
                 ImGui::TableNextColumn();
                 auto unit = value.unit;
                 auto amount = value.numerical_value_in(unit);
                 if constexpr (std::same_as<decltype(amount), int>) {
-                    ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());
+                    ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
                 } else {
-                    ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());
+                    ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
                 }
             };
 
@@ -369,6 +361,8 @@ int main(int argc, char * argv[]) try  // NOLINT
                 ImGui::EndTable();
             }
         });
+
+        gfx::draw_window("Forces", forces_ui(settings));
 
         ImGui::ShowDemoWindow();
 

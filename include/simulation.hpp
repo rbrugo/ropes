@@ -18,6 +18,14 @@ namespace sym
 // TODO: introduce temperature for graphics and, maybe, to change k or E (if significant)
 struct settings
 {
+    struct force_enabled_t {
+        bool gravity = true;
+        bool elastic = true;
+        bool external_damping = true;
+        bool internal_damping = true;
+        bool flexural_rigidity = true;
+    };
+
     int number_of_points;
     ph::stiffness elastic_constant;
     ph::damping_coefficient external_damping;
@@ -31,6 +39,8 @@ struct settings
     ph::time t1;
     ph::duration dt;
     ph::framerate fps;
+
+    force_enabled_t enabled;
 
     settings(
         int n_points,
