@@ -121,6 +121,7 @@ auto acceleration(
     // t = (Δx1 + Δx2) / |Δx1 + Δx2|
     // dir = (t[1], -t[0])
     // F = |F| * dir
+    // FIXME: does not work correctly - it tries to curl the rope
     static auto bending_stiffness_force = [E,r](ph::state const * const prv, ph::state const & curr, ph::state const * const nxt) -> ph::force {
         if (not nxt or not prv) {
             return zero;

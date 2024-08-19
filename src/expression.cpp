@@ -38,7 +38,7 @@ constexpr auto sign_priority(char x) noexcept
     if (operator_higher.contains(x)) { return 1; }
     if (power == x) { return 2; }
     if (function.contains(static_cast<char>(std::tolower(static_cast<int>(x))))) { return 3; }
-    return -1;  // TODO: exception
+    return -1;  // '%'
 }
 
 constexpr bool stronger_sign(char A, char B) noexcept
