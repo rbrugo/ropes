@@ -19,6 +19,8 @@
 #include "imgui_impl_opengl3.h"
 #include <implot.h>
 
+#include <mp-units/math.h>
+
 #include <simulation.hpp>
 #include <expression.hpp>
 
@@ -192,7 +194,87 @@ void forces_ui_fn::operator()() const noexcept
     #undef MAYBE_ENABLED
 }
 
+template <typename Fn, typename ...Ts>
+void for_each(std::tuple<Ts...> const & arg, Fn const & fn) {
+    auto impl = [&arg, &fn]<int I>(this auto & self, std::integral_constant<int, I>) {
+        if constexpr (I < sizeof...(Ts)) {
+            fn(std::get<I>(arg));
+            self(std::integral_constant<int, I+1>{});
+        }
+    };
+    impl(std::integral_constant<int, 0>{});
+}
 
+
+void data_ui_fn::operator()() const noexcept
+{
+    constexpr auto distance = [](auto && segment) {
+        auto [x, y] = segment;
+        return math::norm(x - y);
+    };
+    auto const framerate = 1. * ImGui::GetIO().Framerate * ph::Hz;
+    auto energy = [l=settings->segment_length,k=settings->elastic_constant](auto && segment) {
+        static auto elongation = [l](auto const & p, auto const & q) {
+            auto const delta = p - q;
+            auto const norm = math::norm(delta);
+            if (abs(norm) < 0.0001 * ph::m) {
+                return ph::position{0 * ph::m, 0 * ph::m};
+            }
+            return delta - l * delta * (1. / norm);
+        };
+        auto [a, b] = segment;
+        auto d = elongation(a.x, b.x);
+        mp_units::QuantityOf<isq::energy> auto kinetic = b.m * math::squared_norm(b.v) / 2;
+        mp_units::QuantityOf<isq::energy> auto elastic = k * d * d / 2;
+        mp_units::QuantityOf<isq::energy> auto gravitational = - (b.m * mp_units::si::standard_gravity * b.x[1]).in(ph::J);
+        return math::vector<ph::energy, 2>{kinetic, elastic + gravitational};
+    };
+    auto total_len = std::ranges::fold_left(
+            *rope | std::views::transform(&ph::state::x) |
+            std::views::adjacent<2> |
+            std::views::transform(distance),
+            0. * ph::m,
+            std::plus{}
+            );
+    auto [kinetic_energy, potential_energy] = std::ranges::fold_left(
+            std::views::adjacent<2>(*rope) |
+            std::views::transform(energy),
+            math::vector<ph::energy, 2>::zero(),
+            std::plus{}
+            );
+
+    constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
+    auto const args = std::tuple{
+        std::tuple{"Time", t},
+        std::tuple{"Framerate", framerate},
+        std::tuple{"Steps per frame", steps * mp_units::one},
+        std::tuple{"Length", total_len},
+        std::tuple{"Kinetic energy", kinetic_energy},
+        std::tuple{"Potential energy", potential_energy},
+        std::tuple{"Total energy", (kinetic_energy + potential_energy)}
+    };
+
+    auto print_line = [](auto const & name_value) static {
+        auto const [name, value] = name_value;
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", name);  // NOLINT
+        ImGui::TableNextColumn();
+        auto unit = value.unit;
+        auto amount = value.numerical_value_in(unit);
+        if constexpr (std::same_as<decltype(amount), int>) {
+            ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
+        } else {
+            ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
+        }
+    };
+
+    constexpr auto columns = std::tuple_size_v<std::tuple_element_t<0, decltype(args)>>;
+    if (ImGui::BeginTable("Some data", columns, table_flags)) {
+        for_each(args, print_line);
+        ImGui::EndTable();
+    }
+}
 
 void rope_editor_fn::operator()() noexcept
 {
@@ -297,18 +379,6 @@ void rope_editor_fn::operator()() noexcept
         update = false;
     }
 };
-
-
-// void draw_arrow(
-//     gfx::renderer & renderer,
-//     int x, int y,
-//     std::array<double, 2> const & v, std::array<int, 3> color
-// ) noexcept {
-//     SDL_SetRenderDrawColor(renderer.get(), color[0], color[1], color[2], 0xFF);
-//     SDL_RenderDrawLine(renderer.get(), x, y, x + v[0], y + v[1]);
-//     auto const rect = SDL_Rect(x + v[0] - 4, y + v[1] - 4, 8, 8);
-//     SDL_RenderFillRect(renderer.get(), &rect);
-// }
 
 }  // namespace gfx
 // NOLINTEND(concurrency-mt-unsafe)

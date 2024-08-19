@@ -28,17 +28,6 @@ struct SDL_Event {};
 
 #include <expression.hpp>
 
-template <typename Fn, typename ...Ts>
-void for_each(std::tuple<Ts...> const & arg, Fn const & fn) {
-    auto impl = [&arg, &fn]<int I>(this auto & self, std::integral_constant<int, I>) {
-        if constexpr (I < sizeof...(Ts)) {
-            fn(std::get<I>(arg));
-            self(std::integral_constant<int, I+1>{});
-        }
-    };
-    impl(std::integral_constant<int, 0>{});
-}
-
 auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
 {
     return gfx::forces_ui_fn{settings};
@@ -51,6 +40,11 @@ auto rope_editor_ui(sym::settings const & settings,
     return gfx::rope_editor_fn{settings, rope, time, x_opt, y_opt};
 }
 
+auto data_ui(sym::settings const & settings, auto const & rope, ph::time t, int steps)
+    -> gfx::data_ui_fn
+{
+    return gfx::data_ui_fn{settings, rope, t, steps};
+}
 struct options
 {
     std::optional<int> n = sym::constants::n;
@@ -105,26 +99,10 @@ int main(int argc, char * argv[]) try  // NOLINT
     };
 #endif
 
-    auto const linear_disposition = [] (double t) {
-        return ph::vector<double>{t, 0};
-    };
-
-    auto make_state = [&settings](auto & fn) {
-        return [&fn,&settings](int idx) {
-            auto const n = settings.number_of_points;
-            return ph::state{
-                .x = fn(idx * 1. / n) * n * settings.segment_length,
-                .v = ph::velocity::zero(),
-                .m = settings.segment_mass,
-                .fixed = idx == 0
-            };
-        };
-    };
-
-    auto rope = std::views::iota(0, settings.number_of_points)
-              | std::views::transform(make_state(linear_disposition))
-              | std::ranges::to<std::vector>();
-              ;
+    auto x_expr = brun::expr::parse_expression(options.x.value(), "t");
+    auto y_expr = brun::expr::parse_expression(options.y.value(), "t");
+    auto fn = [x=x_expr.value()['t'], y=y_expr.value()['t']](auto t) { return ph::vector<>{x(t), -y(t)}; };
+    auto rope = sym::construct_rope(settings, fn);
 
     auto [quit, pause, step] = std::array{false, *options.pause, false};
 
@@ -309,80 +287,11 @@ int main(int argc, char * argv[]) try  // NOLINT
         ImGui::NewFrame();
 
 
-        gfx::draw_window("Data", [&,points] {
-            constexpr auto distance = [](auto && segment) {
-                auto [x, y] = segment;
-                return math::norm(x - y);
-            };
-            auto const framerate = 1. * ImGui::GetIO().Framerate * ph::Hz;
-            auto energy = [l=settings.segment_length,k=settings.elastic_constant](auto && segment) {
-                static auto elongation = [l](auto const & p, auto const & q) {
-                    auto const delta = p - q;
-                    auto const norm = math::norm(delta);
-                    if (abs(norm) < 0.0001 * ph::m) {
-                        return ph::position{0 * ph::m, 0 * ph::m};
-                    }
-                    return delta - l * delta * (1. / norm);
-                };
-                auto [a, b] = segment;
-                auto d = elongation(a.x, b.x);
-                mp_units::QuantityOf<isq::energy> auto kinetic = b.m * math::squared_norm(b.v) / 2;
-                mp_units::QuantityOf<isq::energy> auto elastic = k * d * d / 2;
-                mp_units::QuantityOf<isq::energy> auto gravitational = - (b.m * mp_units::si::standard_gravity * b.x[1]).in(ph::J);
-                return math::vector<ph::energy, 2>{kinetic, elastic + gravitational};
-            };
-            auto total_len = std::ranges::fold_left(
-                std::views::adjacent<2>(points) |
-                std::views::transform(distance),
-                0. * ph::m,
-                std::plus{}
-            );
-            auto [kinetic_energy, potential_energy] = std::ranges::fold_left(
-                std::views::adjacent<2>(rope) |
-                std::views::transform(energy),
-                math::vector<ph::energy, 2>::zero(),
-                std::plus{}
-            );
-
-            constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
-            auto const args = std::tuple{
-                std::tuple{"Time", t},
-                std::tuple{"Framerate", framerate},
-                std::tuple{"Steps per frame", steps * mp_units::one},
-                std::tuple{"Length", total_len},
-                std::tuple{"Kinetic energy", kinetic_energy},
-                std::tuple{"Potential energy", potential_energy},
-                std::tuple{"Total energy", (kinetic_energy + potential_energy)}
-            };
-
-            auto print_line = [](auto const & name_value) static {
-                auto const [name, value] = name_value;
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", name);  // NOLINT
-                ImGui::TableNextColumn();
-                auto unit = value.unit;
-                auto amount = value.numerical_value_in(unit);
-                if constexpr (std::same_as<decltype(amount), int>) {
-                    ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
-                } else {
-                    ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
-                }
-            };
-
-            constexpr auto columns = std::tuple_size_v<std::tuple_element_t<0, decltype(args)>>;
-            if (ImGui::BeginTable("Some data", columns, table_flags)) {
-                for_each(args, print_line);
-                ImGui::EndTable();
-            }
-        });
-
+        gfx::draw_window("Data", data_ui(settings, rope, t, steps));
         gfx::draw_window("Forces", forces_ui(settings));
-
-
         gfx::draw_window("Rope",  rope_editor_ui(settings, rope, t, *options.x, *options.y));
 
-        ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -146,7 +146,7 @@ auto integrate(sym::settings const & settings, std::span<ph::state const> const 
  * @brief Construct the rope using a function.
  *
  * @param settings the settings from the CLI and UI.
- * @param f a function mapping an index to a 2D vector.
+ * @param f a function mapping [0,1] to a 2D vector.
  * @param equalize_distance if `true`, the points will be equally spaced
  */
 auto construct_rope(

@@ -157,6 +157,22 @@ struct forces_ui_fn {
     void operator()() const noexcept;
 };
 
+struct data_ui_fn {
+    sym::settings const * settings;
+    std::vector<ph::state> const * rope;
+    ph::time t;
+    int steps;
+
+    explicit data_ui_fn(
+        sym::settings const & s,
+        std::vector<ph::state> const & rope,
+        ph::time t,
+        int steps
+    ) : settings{std::addressof(s)}, rope{std::addressof(rope)}, t{t}, steps{steps}
+    {}
+    void operator()() const noexcept;
+};
+
 struct rope_editor_fn {
     sym::settings const * settings;
     std::vector<ph::state> * rope;
@@ -165,10 +181,8 @@ struct rope_editor_fn {
     std::string_view y;
     explicit rope_editor_fn(
         sym::settings const & settings,
-        auto & rope,
-        ph::duration & time,
-        std::string_view x_opt,
-        std::string_view y_opt
+        auto & rope, ph::duration & time,
+        std::string_view x_opt, std::string_view y_opt
     ) :
         settings{std::addressof(settings)},
         rope{std::addressof(rope)},

@@ -280,7 +280,7 @@ auto equidistant_points_along_function(
     auto pt_dst = std::views::zip(plot_points, cumulative_arc_lengths);
     auto it = std::ranges::begin(pt_dst);
     auto const pt_end = std::ranges::cend(pt_dst);
-    auto const Δl = cumulative_arc_lengths.back() / (n_points - 1);
+    auto const Δl = cumulative_arc_lengths.back() / n_points;
     auto current_arc = Δl;
     auto equidistant_points = std::vector<math::vector<double, 2>>{plot_points[0]};
     while (true) {
