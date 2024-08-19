@@ -1,3 +1,4 @@
 CompileFlags:
   CompilationDatabase: build/*       # Search build/ directory for compile_commands.json
   Compiler: /usr/bin/g++
+  Add: [-D__cpp_concepts=202002L]

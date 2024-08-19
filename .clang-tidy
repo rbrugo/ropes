@@ -1,0 +1,38 @@
+---
+Checks: "*,
+        -abseil-*,
+        -altera-*,
+        -android-*,
+        -fuchsia-*,
+        -google-*,
+        -llvm*,
+        -modernize-use-trailing-return-type,
+        -zircon-*,
+        -readability-else-after-return,
+        -readability-static-accessed-through-instance,
+        -readability-avoid-const-params-in-decls,
+        -cppcoreguidelines-non-private-member-variables-in-classes,
+        -misc-non-private-member-variables-in-classes,
+        -readability-magic-numbers,
+        -cppcoreguidelines-avoid-magic-numbers,
+        -readability-qualified-auto,
+        -hicpp-uppercase-literal-suffix,
+        -readability-uppercase-literal-suffix,
+        -readability-container-data-pointer,
+        -cert-dcl16-c,
+"
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle:     none
+
+CheckOptions:
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: 'i|j|k|u|v|x|y|z|_|_*'
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: 'i|j|k|u|v|x|y|z|_|_*'
+  - key: readability-identifier-naming.ParameterMinLength
+    value: 1
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: 'true'
+  - key: cppcoreguidelines-macro-usage.CheckCapsOnly
+    value: 'true'

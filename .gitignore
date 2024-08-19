@@ -1,1 +1,7 @@
 build/*
+CMakeFiles
+stuff
+CMakeCache.txt
+CMakeUserPresets.json
+build.ninja
+cmake_install.cmake
