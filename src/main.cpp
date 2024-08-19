@@ -44,15 +44,17 @@ struct options
 {
     std::optional<int> n = sym::constants::n;
     std::optional<double> k = sym::constants::k.numerical_value_in(ph::N/ph::m);
+    std::optional<double> E = sym::constants::E.numerical_value_in(ph::GPa);
     std::optional<double> b = sym::constants::b.numerical_value_in(ph::N*ph::s/ph::m);
     std::optional<double> c = sym::constants::c.numerical_value_in(ph::N*ph::s/ph::m);
     std::optional<double> total_length = sym::constants::total_length.numerical_value_in(ph::m);
+    std::optional<double> diameter = sym::constants::diameter.numerical_value_in(ph::mm);
     std::optional<double> linear_density = sym::constants::linear_density.numerical_value_in(ph::kg/ph::m);
     std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
     std::optional<double> fps = sym::constants::fps.numerical_value_in(ph::Hz);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
 };
-STRUCTOPT(options, n, k, b, c, total_length, linear_density, dt, fps, duration);
+STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration);
 
 int main(int argc, char * argv[]) try  // NOLINT
 {
@@ -61,9 +63,11 @@ int main(int argc, char * argv[]) try  // NOLINT
     auto settings = sym::settings{
         options.n.value(),
         options.k.value() * ph::N / ph::m,
+        options.E.value() * ph::GPa,
         options.b.value() * ph::N * ph::s / ph::m,
         options.c.value() * ph::N * ph::s / ph::m,
         options.total_length.value() * ph::m,
+        options.diameter.value() * ph::mm,
         options.linear_density.value() * ph::kg / ph::m,
         options.dt.value() * ph::s,
         options.fps.value() * ph::Hz,
@@ -87,17 +91,24 @@ int main(int argc, char * argv[]) try  // NOLINT
     };
 #endif
 
-    auto make_state = [&settings](int idx) {
-        return ph::state{
-            .x = ph::position{settings.segment_length * idx, 0. * ph::m},
-            .v = ph::velocity::zero(),
-            .m = settings.segment_mass,
-            .fixed = idx == 0
+    auto const linear_disposition = [] (double t) {
+        return ph::vector<double>{t, 0};
+    };
+
+    auto make_state = [&settings](auto & fn) {
+        return [&fn,&settings](int idx) {
+            auto const n = settings.number_of_points;
+            return ph::state{
+                .x = fn(idx * 1. / n) * n * settings.segment_length,
+                .v = ph::velocity::zero(),
+                .m = settings.segment_mass,
+                .fixed = idx == 0
+            };
         };
     };
 
     auto rope = std::views::iota(0, settings.number_of_points)
-              | std::views::transform(make_state)
+              | std::views::transform(make_state(linear_disposition))
               | std::ranges::to<std::vector>();
               ;
 
@@ -271,18 +282,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 #ifndef NO_GRAPHICS
         SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
 
-        // glBegin(GL_LINES);
-        // glVertex2f(0, 0);
-        // glVertex2f(0.f, 100.f / config.screen_size[1]);
-        // glEnd();
-        // glBegin(GL_LINES);
-        // glVertex2f(0, 0);
-        // glVertex2f(100.f / config.screen_size[0], 0.f);
-        // glEnd();
-
-        auto const points = rope
-                          | std::views::transform(&ph::state::x)
-                          ;
+        auto const points = rope | std::views::transform(&ph::state::x);
         gfx::render(points, settings.segment_length, config);
 
 
@@ -332,6 +332,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 
             constexpr auto table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
             auto const args = std::tuple{
+                std::tuple{"Time", t},
                 std::tuple{"Framerate", framerate},
                 std::tuple{"Steps per frame", steps * mp_units::one},
                 std::tuple{"Length", total_len},
@@ -340,8 +341,8 @@ int main(int argc, char * argv[]) try  // NOLINT
                 std::tuple{"Total energy", (kinetic_energy + potential_energy)}
             };
 
-            auto print_line = [](auto const & args) static {
-                auto const [name, value] = args;
+            auto print_line = [](auto const & name_value) static {
+                auto const [name, value] = name_value;
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", name);  // NOLINT

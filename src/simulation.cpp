@@ -56,8 +56,10 @@ auto acceleration(
 
     auto const segment_length = settings.segment_length;
     auto const k = settings.elastic_constant;
+    auto const E = settings.young_modulus;
     auto const b = settings.external_damping;
     auto const c = settings.internal_damping;
+    auto const r = settings.diameter / 2;
 
     static auto distance = [segment_length](auto const & p, auto const & q) {
         auto const delta = p - q;
@@ -118,31 +120,29 @@ auto acceleration(
     // t = (Δx1 + Δx2) / |Δx1 + Δx2|
     // dir = (t[1], -t[0])
     // F = |F| * dir
-    static auto bending_stiffness_force = [](ph::state const * const prev, ph::state const & current, ph::state const * const next) -> ph::force {
-        if (not next or not prev) {
+    static auto bending_stiffness_force = [E,r](ph::state const * const prv, ph::state const & curr, ph::state const * const nxt) -> ph::force {
+        if (not nxt or not prv) {
             return zero;
         }
-        auto const radius = radius_given_three_points(prev->x, current.x, next->x);
+        auto const radius = radius_given_three_points(prv->x, curr.x, nxt->x);
         if (not radius) {
             return zero;
         }
         auto const κ = 1. / *radius;
-        auto const r = 0.6 * ph::cm;  // rope section radius
         auto const I = std::numbers::pi * r * r * r * r / 4;  // second moment of area
-        auto const E = 1. * ph::GPa;  // Young modulus
         auto const bending_moment = E * I * κ;
 
-        auto const Δx1 = prev->x - current.x;
-        auto const Δx2 = current.x - next->x;
+        auto const Δx1 = prv->x - curr.x;
+        auto const Δx2 = curr.x - nxt->x;
 
         auto const nΔx1 = math::norm(Δx1);
         auto const nΔx2 = math::norm(Δx2);
 
         auto const modulus = 2 * bending_moment / (nΔx1 + nΔx2);  // using the full arc length
 
-        auto const t = math::unit(Δx1 + Δx2);  // using the weighted direction
+        auto const tg = math::unit(Δx1 + Δx2);  // using the weighted direction
 
-        return modulus * math::vector{-t[1], t[0]};
+        return modulus * math::vector{-tg[1], tg[0]};
     };
 
     auto const elastic = enabled.elastic
@@ -204,14 +204,15 @@ auto integrate(
 
 void dump_settings(sym::settings const & settings) noexcept {
     auto const & [
-        n, k, b, c,
-        total_length, segment_length, linear_density, segment_mass,
+        n, k, E, b, c,
+        total_length, diameter, segment_length, linear_density, segment_mass,
         t0, t1, dt, fps,
         enabled
     ] = settings;
     auto const g = (1. * mp_units::si::standard_gravity).in(ph::N / ph::kg);
     fmt::print("Number of points (n):             {}\n", n);
     fmt::print("Elastic constant (k):             {}\n", k);
+    fmt::print("Young modulus (E):                {}\n", E);
     fmt::print("External damping coefficient (b): {}\n", b);
     fmt::print("internal damping coefficient (c): {}\n", c);
     fmt::print("Linear density:                   {}\n", linear_density);

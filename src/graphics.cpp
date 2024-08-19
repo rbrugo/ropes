@@ -153,7 +153,35 @@ void forces_ui_fn::operator()() const noexcept
         }
     });
     gfx::tree_node("Flexural rigidity", [&] {
+        constexpr auto E_min = 0.;
+        constexpr auto E_max = 10.;
+        constexpr auto r_min = 0.4;
+        constexpr auto r_max = 18.;
         ImGui::Checkbox("Enable force", &enable.flexural_rigidity);
+        ImGui::SetNextItemWidth(100);
+        MAYBE_ENABLED(
+            enable.flexural_rigidity,
+            ImGui::SliderScalar("Young modulus (E)", ImGuiDataType_Double, REF(young_modulus, ph::GPa), &E_min, &E_max, "%.2lf GPa")
+        );
+
+        auto windowWidth = ImGui::GetWindowSize().x;
+        auto buttonWidth = ImGui::CalcTextSize("Reset").x + ImGui::GetStyle().FramePadding.x * 2;
+
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(windowWidth - buttonWidth - 2 * ImGui::GetStyle().ItemSpacing.x);
+        if (ImGui::Button("Reset")) {
+            settings->young_modulus = sym::constants::E; // FIXME: real value is set on startup
+        }
+        ImGui::SetNextItemWidth(100);
+        MAYBE_ENABLED(
+            enable.flexural_rigidity,
+            ImGui::SliderScalar("Rope diameter (mm)", ImGuiDataType_Double, REF(diameter, ph::mm), &r_min, &r_max, "%.2lf mm")
+        );
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(windowWidth - buttonWidth - 2 * ImGui::GetStyle().ItemSpacing.x);
+        if (ImGui::Button("Reset")) {
+            settings->diameter = sym::constants::diameter; // FIXME: real value is set on startup
+        }
     });
 
     #undef REF

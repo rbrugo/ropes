@@ -36,10 +36,12 @@ using mass = quantity<kg>;
 using duration = quantity<s>;
 using time = quantity<s>;
 using length = quantity<m>;
+using diameter = quantity<mm>;
 using speed = quantity<m / s>;
 using magnitude_of_acceleration = quantity<m / s2>;
 
 using stiffness = quantity<N / m>;
+using compressive_stiffness = quantity<GPa>;
 using damping_coefficient = quantity<N * s / m>;
 using linear_density = quantity<kg / m>;
 
