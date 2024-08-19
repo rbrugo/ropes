@@ -4,7 +4,8 @@ mp-units/2.2.1
 # callables/0.2.1
 scope-lite/0.2.0
 structopt/0.1.3
-imgui/1.91.0
+imgui/1.90.5
+implot/0.16
 
 [options]
 mp-units/*:std_format=False

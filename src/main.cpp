@@ -13,16 +13,20 @@
 #include <imgui.h>
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
+#include <implot.h>
 #else
 struct SDL_Event {};
 #endif
 #include <math.hpp>
 #include <mp-units/math.h>
 #include <thread>
+#include <expected>
 #include <structopt/app.hpp>
 
 #include "simulation.hpp"
 #include <mp-units/systems/si/chrono.h>
+
+#include <expression.hpp>
 
 template <typename Fn, typename ...Ts>
 void for_each(std::tuple<Ts...> const & arg, Fn const & fn) {
@@ -40,6 +44,13 @@ auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
     return gfx::forces_ui_fn{settings};
 }
 
+auto rope_editor_ui(sym::settings const & settings,
+                    auto & rope, ph::duration & time,
+                    std::string_view x_opt, std::string_view y_opt
+) -> gfx::rope_editor_fn {
+    return gfx::rope_editor_fn{settings, rope, time, x_opt, y_opt};
+}
+
 struct options
 {
     std::optional<int> n = sym::constants::n;
@@ -53,8 +64,10 @@ struct options
     std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
     std::optional<double> fps = sym::constants::fps.numerical_value_in(ph::Hz);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
+    std::optional<std::string> x = "t";
+    std::optional<std::string> y = "0";
 };
-STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration);
+STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration, x, y);
 
 int main(int argc, char * argv[]) try  // NOLINT
 {
@@ -148,6 +161,9 @@ int main(int argc, char * argv[]) try  // NOLINT
         // poll events
         while (SDL_PollEvent(&event) != 0) {
             ImGui_ImplSDL2_ProcessEvent(&event);
+            if (ImGui::GetIO().WantCaptureKeyboard) {
+                break;
+            }
             switch (event.type) {
             case SDL_QUIT:
                 quit = true;
@@ -292,10 +308,7 @@ int main(int argc, char * argv[]) try  // NOLINT
         ImGui::NewFrame();
 
 
-        gfx::draw_window("Data", [&] {
-            auto const points = rope
-                              | std::views::transform(&ph::state::x)
-                              ;
+        gfx::draw_window("Data", [&,points] {
             constexpr auto distance = [](auto && segment) {
                 auto [x, y] = segment;
                 return math::norm(x - y);
@@ -364,6 +377,9 @@ int main(int argc, char * argv[]) try  // NOLINT
         });
 
         gfx::draw_window("Forces", forces_ui(settings));
+
+
+        gfx::draw_window("Rope",  rope_editor_ui(settings, rope, t, *options.x, *options.y));
 
         ImGui::ShowDemoWindow();
 

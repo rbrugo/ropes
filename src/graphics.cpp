@@ -17,8 +17,10 @@
 #include <imgui.h>
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
+#include <implot.h>
 
 #include <simulation.hpp>
+#include <expression.hpp>
 
 namespace gfx
 {
@@ -28,6 +30,7 @@ auto setup_imgui(auto const & glsl_version, auto const & window, auto const & gl
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     // auto & io = ImGui::GetIO();
     ImGui::StyleColorsDark();
 
@@ -91,6 +94,7 @@ auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff
         std::move(window), std::move(gl_context), nonstd::scope_exit{+[] static {
             ImGui_ImplOpenGL3_Shutdown();
             ImGui_ImplSDL2_Shutdown();
+            ImPlot::DestroyContext();
             ImGui::DestroyContext();
         }}
     };
@@ -187,6 +191,112 @@ void forces_ui_fn::operator()() const noexcept
     #undef REF
     #undef MAYBE_ENABLED
 }
+
+
+
+void rope_editor_fn::operator()() noexcept
+{
+    using maybe_expression = std::expected<brun::expr::expression, std::string>;
+    static auto update = true;
+    static auto x_formula = [this] {
+        auto base = std::array<char, 128>{};
+        std::ranges::copy(x, base.begin());
+        return base;
+    }();
+    static auto y_formula = [this] {
+        auto base = std::array<char, 128>{};
+        std::ranges::copy(y, base.begin());
+        return base;
+    }();
+    static auto x_expr = maybe_expression{brun::expr::expression{x, "t"}};
+    static auto y_expr = maybe_expression{brun::expr::expression{y, "t"}};
+    static auto equalize_distance = true;
+
+    ImGui::InputTextWithHint("= x(t)", x.data(), x_formula.data(), x_formula.size());
+    ImGui::InputTextWithHint("= y(t)", y.data(), y_formula.data(), y_formula.size());
+    ImGui::Checkbox("Equalize points distance", &equalize_distance);
+
+
+    auto eval = [](auto & arr) -> maybe_expression {
+        auto ptr = arr.data();
+        return brun::expr::parse_expression(std::string_view{ptr, std::strlen(ptr)}, "t");
+    };
+
+    auto preview = ImGui::Button("Preview");
+    ImGui::SameLine();
+    auto apply = ImGui::Button("Reset time and apply formulas");
+
+    if (preview or apply) {
+        update = true;
+        fmt::print("True\n");
+        x_expr = eval(x_formula);
+        y_expr = eval(y_formula);
+        if (not x_expr.has_value() or not y_expr.has_value()) {
+            fmt::print("Bad formula!\n");
+            ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+            ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+            ImGui::OpenPopup("Bad formula");
+        }
+    }
+
+    if (apply) {
+        auto const fn = [x=(*x_expr)['t'],y=(*y_expr)['t']] (auto n) {
+            return math::vector<double, 2>{x(n), -y(n)};
+        };
+        *rope = sym::construct_rope(*settings, fn, equalize_distance);
+        ;
+        *t = settings->t0;
+    }
+
+    if (auto h = ImGui::GetContentRegionAvail().x; ImPlot::BeginPlot("Equalized", ImVec2(h, h))) {
+        constexpr auto stride = sizeof(math::vector<double, 2>);
+        static auto equidistant_points = std::vector<math::vector<double, 2>>{};
+        static auto original_xs = std::vector<double>{};
+        static auto original_ys = std::vector<double>{};
+        static auto equalized = std::vector<math::vector<double, 2>>{};
+        static auto original = std::vector<math::vector<double, 2>>{};
+
+        auto bad_formula = not x_expr.has_value() or not y_expr.has_value();
+        if (update and not bad_formula) {
+            auto fn = [x=(*x_expr)['t'],y=(*y_expr)['t']] (auto n) {
+                return math::vector<double, 2>{x(n), y(n)};
+            };
+            equidistant_points = sym::equidistant_points_along_function(fn, 100);
+            original = std::views::iota(0, 11)
+                | std::views::transform([](auto i) { return double(i) / 10; })
+                | std::views::transform(fn)
+                | std::ranges::to<std::vector>();
+            equalized = equidistant_points | std::views::stride(equidistant_points.size() / 10) | std::ranges::to<std::vector>();
+        }
+
+#define PLT(type, name, rng) \
+        ImPlot::type(name, &(rng)[0][0], &(rng)[0][1], static_cast<int>((rng).size()), 0, 0, stride)
+        PLT(PlotLine, "Rope line", equidistant_points);
+        PLT(PlotScatter, "Points", original);
+        PLT(PlotScatter, "Equalized points", equalized);
+#undef PLT
+        ImPlot::EndPlot();
+    }
+
+
+    if (ImGui::BeginPopupModal("Bad formula", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        auto bad_x = not x_expr.has_value();
+        auto bad_y = not y_expr.has_value();
+        if (bad_x and bad_y) {
+            ImGui::Text("Both x(t) and y(t) formulas failed to compile due to errors:");  // NOLINT(*-vararg)
+            ImGui::Text("x: %s", x_expr.error().c_str());  // NOLINT(*-vararg)
+            ImGui::Text("y: %s", y_expr.error().c_str());  // NOLINT(*-vararg)
+        } else {
+            ImGui::Text("%s(t) failed to compile due to error:", bad_x ? "x" : "y");  // NOLINT(*-vararg)
+            ImGui::Text("%c: %s", bad_x ? 'x' : 'y', (bad_x ? x_expr : y_expr).error().c_str());  // NOLINT(*-vararg)
+        }
+        if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+    }
+
+    if (update) {
+        update = false;
+    }
+};
 
 
 // void draw_arrow(

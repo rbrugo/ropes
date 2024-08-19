@@ -157,6 +157,29 @@ struct forces_ui_fn {
     void operator()() const noexcept;
 };
 
+struct rope_editor_fn {
+    sym::settings const * settings;
+    std::vector<ph::state> * rope;
+    ph::duration * t;
+    std::string_view x;
+    std::string_view y;
+    explicit rope_editor_fn(
+        sym::settings const & settings,
+        auto & rope,
+        ph::duration & time,
+        std::string_view x_opt,
+        std::string_view y_opt
+    ) :
+        settings{std::addressof(settings)},
+        rope{std::addressof(rope)},
+        t{std::addressof(time)},
+        x{x_opt},
+        y{y_opt}
+    {}
+
+    void operator()() noexcept;
+};
+
 } // namespace gfx
 
 #endif /* GRAPHICS_HPP */

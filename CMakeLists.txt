@@ -30,6 +30,7 @@ find_package(mp-units REQUIRED)
 find_package(scope-lite REQUIRED)
 find_package(structopt REQUIRED)
 find_package(imgui REQUIRED)
+find_package(implot REQUIRED)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                             Enable warnings                            #
@@ -55,12 +56,27 @@ target_compile_definitions(SDL_collection PUBLIC MP_UNITS_API_STD_FORMAT=0)
 target_link_libraries(SDL_collection
     PUBLIC
         fmt::fmt nonstd::scope-lite mp-units::mp-units
-        SDL2::SDL2 SDL2_ttf::SDL2_ttf imgui::imgui
+        imgui::imgui implot::implot
+        SDL2::SDL2 SDL2_ttf::SDL2_ttf
         OpenGL::OpenGL
 )
 target_include_directories(SDL_collection PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
 target_link_options(SDL_collection PRIVATE -fuse-ld=mold)
 # find_package(SDL2_image REQUIRED)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+#                               Expression                               #
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+add_library(expression)
+target_sources(expression PRIVATE src/expression.cpp)
+target_link_libraries(expression PUBLIC fmt::fmt)
+target_include_directories(expression PUBLIC "${CMAKE_CURRENT_LIST_DIR}/include")
+target_link_options(expression PRIVATE -fuse-ld=mold)
+
+add_executable(expression_test)
+target_sources(expression_test PRIVATE test/expression.cpp)
+target_link_libraries(expression_test PUBLIC expression)
+target_link_options(SDL_collection PRIVATE -fuse-ld=mold)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 ropes                                  #
@@ -74,6 +90,7 @@ target_link_libraries(ropes
     PRIVATE
         fmt::fmt mp-units::mp-units structopt::structopt
         SDL_collection imgui::imgui
+        expression
         project_warnings
 )
 target_link_options(ropes PRIVATE -fuse-ld=mold)

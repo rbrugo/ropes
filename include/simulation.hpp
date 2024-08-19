@@ -142,7 +142,45 @@ auto evaluate(
 
 auto integrate(sym::settings const & settings, std::span<ph::state const> const states, ph::time t, ph::duration dt) -> std::vector<ph::state>;
 
+/**
+ * @brief Construct the rope using a function.
+ *
+ * @param settings the settings from the CLI and UI.
+ * @param f a function mapping an index to a 2D vector.
+ * @param equalize_distance if `true`, the points will be equally spaced
+ */
+auto construct_rope(
+    sym::settings const & settings, std::function<ph::vector<>(double)> const & f,
+    bool equalize_distance = true
+) -> std::vector<ph::state>;
+
+/**
+ * @brief Generates `n_points` points incrementing linearly t in the interval [0, 1]
+ *
+ * @param fn a function mapping [0, 1] into a 2D vector.
+ * @param n_points the number of vectors to generate.
+ * @param total_len the total length of the curve
+ */
+auto points_along_function(
+    std::function<ph::vector<>(double)> const & fn, ssize_t n_points,
+    std::optional<double> total_len = std::nullopt
+) -> std::vector<math::vector<double, 2>>;
+
+/**
+ * @brief Generates `n_points` points incrementing t in the interval [0, 1] such that the
+ * distance between all the points are equally spaced
+ *
+ * @param fn a function mapping [0,1] into a 2D vector.
+ * @param n_points the number of vectors to generate.
+ * @param total_len the total length of the curve
+ */
+auto equidistant_points_along_function(
+    std::function<ph::vector<>(double)> const & fn, ssize_t n_points,
+    std::optional<double> total_len = std::nullopt
+) -> std::vector<math::vector<double, 2>>;
+
 } // namespace sym
+
 
 
 void dump_settings(sym::settings const &) noexcept;

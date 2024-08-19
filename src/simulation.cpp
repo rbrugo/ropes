@@ -11,6 +11,7 @@
 #include <mp-units/ext/format.h>
 #include <mp-units/math.h>
 #include <numbers>
+#include <ranges>
 
 namespace sym {
 
@@ -198,6 +199,103 @@ auto integrate(
          | std::views::transform([&](auto && tp) { return std::apply(evolve, FWD(tp)); })
          | std::ranges::to<std::vector<ph::state>>()
          ;
+}
+
+auto construct_rope(
+    sym::settings const & settings, std::function<ph::vector<>(double)> const & f, bool equalize_distance
+) -> std::vector<ph::state>
+{
+    auto total_length = settings.total_length.numerical_value_in(ph::m);
+    auto n_points = settings.number_of_points;
+    auto points = equalize_distance
+        ? equidistant_points_along_function(f, n_points, total_length)
+        : points_along_function(f, n_points, total_length);
+
+    auto at_idx = [&points](int idx) { return points[idx]; };
+    auto mkstate = [&](int idx) {
+        return ph::state{
+            .x = at_idx(idx) * ph::m,
+                .v = ph::velocity::zero(),
+                .m = settings.segment_mass,
+                .fixed = idx == 0
+        };
+    };
+    return std::views::iota(0, settings.number_of_points)
+        | std::views::transform(mkstate)
+        | std::ranges::to<std::vector>();
+}
+
+auto points_along_function(
+    std::function<ph::vector<>(double)> const & fn, ssize_t n_points,
+    std::optional<double> total_len
+) -> std::vector<math::vector<double, 2>>
+{
+    auto distance = [](auto p) {
+        auto [a, b] = p;
+        return math::norm(a - b);
+    };
+    auto pts = std::views::iota(0, n_points)
+        | std::views::transform([=](int n) { return double(n) / (n_points - 1); })
+        | std::views::transform(fn)
+        | std::ranges::to<std::vector>();
+    if (total_len.has_value()) {
+        auto const arc_lengths = pts | std::views::adjacent<2> | std::views::transform(distance);
+        auto const total_arc_length = std::ranges::fold_left(arc_lengths, 0., std::plus{});
+        auto const ratio = *total_len / total_arc_length;
+        auto const mul = [ratio](auto x) { return x * ratio; };
+        std::ranges::transform(pts, pts.begin(), mul);
+    }
+
+    return pts;
+}
+
+auto equidistant_points_along_function(
+    std::function<ph::vector<>(double)> const & fn, ssize_t n_points,
+    std::optional<double> total_len
+) -> std::vector<math::vector<double, 2>>
+{
+    auto plot_points = std::views::iota(0, n_points)
+        | std::views::transform([=](int n) { return float(n) / (n_points - 1); })
+        | std::views::transform(fn)
+        | std::ranges::to<std::vector>();
+    auto distance = [](auto p) {
+        auto [a, b] = p;
+        return math::norm(a - b);
+    };
+    auto arc_lengths = plot_points
+        | std::views::adjacent<2>
+        | std::views::transform(distance)
+    ;
+    auto cumulative_arc_lengths = std::vector<double>(plot_points.size(), 0);
+    std::partial_sum(arc_lengths.begin(), arc_lengths.end(), cumulative_arc_lengths.begin() + 1);
+
+    if (total_len.has_value()) {
+        auto const len = *total_len;
+        auto const ratio = len / cumulative_arc_lengths.back();
+        auto fn = [ratio](auto x) { return x * ratio; };
+        std::ranges::transform(cumulative_arc_lengths, cumulative_arc_lengths.begin(), fn);
+        std::ranges::transform(plot_points, plot_points.begin(), fn);
+    }
+
+    auto pt_dst = std::views::zip(plot_points, cumulative_arc_lengths);
+    auto it = std::ranges::begin(pt_dst);
+    auto const pt_end = std::ranges::cend(pt_dst);
+    auto const Δl = cumulative_arc_lengths.back() / (n_points - 1);
+    auto current_arc = Δl;
+    auto equidistant_points = std::vector<math::vector<double, 2>>{plot_points[0]};
+    while (true) {
+        auto pt = equidistant_points.back();
+        // trovo P_next (it)
+        while (it != pt_end and std::get<1>(*it) < current_arc) { ++it; }
+        if (it == pt_end) {
+            break;  // TODO: break or what?
+        }
+        auto const [p_next, l_next] = *it;
+        auto new_pt = pt + (p_next - pt) * Δl / (l_next - current_arc + Δl);
+        equidistant_points.push_back(new_pt);
+        current_arc += Δl;
+    }
+    return equidistant_points;
 }
 
 }  // namespace sym
