@@ -64,10 +64,11 @@ struct options
     std::optional<double> dt = sym::constants::dt.numerical_value_in(ph::s);
     std::optional<double> fps = sym::constants::fps.numerical_value_in(ph::Hz);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
+    std::optional<bool> pause = false;
     std::optional<std::string> x = "t";
     std::optional<std::string> y = "0";
 };
-STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration, x, y);
+STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration, pause, x, y);
 
 int main(int argc, char * argv[]) try  // NOLINT
 {
@@ -125,7 +126,7 @@ int main(int argc, char * argv[]) try  // NOLINT
               | std::ranges::to<std::vector>();
               ;
 
-    auto [quit, pause, step] = std::array{false, false, false};
+    auto [quit, pause, step] = std::array{false, *options.pause, false};
 
     auto config = gfx::screen_config {
         .screen_size = {0, 0},
@@ -405,7 +406,9 @@ int main(int argc, char * argv[]) try  // NOLINT
 
 #ifndef NO_GRAPHICS
         // wait
-        std::this_thread::sleep_until(end);
+        if (settings.fps < 60 * ph::Hz) {
+            std::this_thread::sleep_until(end);
+        }
 #endif
     }
 #ifdef NO_GRAPHICS
