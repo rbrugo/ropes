@@ -76,7 +76,8 @@ target_link_options(expression PRIVATE -fuse-ld=mold)
 add_executable(expression_test)
 target_sources(expression_test PRIVATE test/expression.cpp)
 target_link_libraries(expression_test PUBLIC expression)
-target_link_options(SDL_collection PRIVATE -fuse-ld=mold)
+target_link_options(expression_test PRIVATE -fuse-ld=mold)
+enable_sanitizers(expression_test)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 #                                 ropes                                  #

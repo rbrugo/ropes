@@ -9,6 +9,8 @@
 #include <numbers>
 #include <ranges>
 #include <cmath>
+// #include <fmt/std.h>  // DEBUG
+// #include <fmt/ranges.h>  // DEBUG
 
 namespace brun::expr
 {
@@ -139,11 +141,9 @@ auto match_real(char const * const begin, char const * const end) -> std::pair<s
 }
 
 constexpr
-auto match_function(std::string_view const str) -> std::optional<std::pair<char, size_t>>
+auto match_function(std::string_view const str)
+    -> std::optional<std::pair<char, size_t>>
 {
-    if (str[0] == '-' and (std::isdigit(str[1]) == 0)) {
-        return std::pair{'n', 1};
-    }
     for (std::string_view const word : {
         "sin", "cos", "tan", "asin", "acos", "atan", "ln", "log", "exp", "abs", "sqrt", "cbrt"
     }) {
@@ -237,6 +237,7 @@ auto preparse(std::string_view src_) noexcept -> std::string
         from = static_cast<decltype(from)>(i);
     }
     result.append(src.substr(from, i - from));
+    // fmt::print("Preparsed: {}\n", result);  // DEBUG
     return result;
 }
 
@@ -370,9 +371,9 @@ auto parse(std::string_view src, std::string_view param_names) -> std::vector<va
 
 auto build_impl(std::string_view src, std::string_view param_names) -> std::unique_ptr<node>
 {
-    // fmt::print("Parsing\n");  // DEBUG
+    // fmt::print("* Parsing: '{}'\n", src);  // DEBUG
     auto symbols = parse(src, param_names);
-    // fmt::print("Parsed\n");  // DEBUG
+    // fmt::print("* Parsed: '{}'\n", symbols);  // DEBUG
     // fmt::print("Result: {}\n", symbols);
     auto it = symbols.crbegin();
     auto end = symbols.crend();
@@ -394,26 +395,37 @@ auto build_impl(std::string_view src, std::string_view param_names) -> std::uniq
 
     auto stack = std::vector<decltype(head.get())>{head.get()};
     while (it != end) {
-        // fmt::print("Symbol {}/{}\n", it - symbols.crbegin(), end - symbols.crbegin());  // DEBUG
+        if (stack.empty()) {
+            throw std::logic_error{"Invalid string"};
+        }
+        // fmt::print(">>> Pushing: {}\n", *it);  // DEBUG
         auto const & top = stack.back();
-        // fmt::print("Symbol: {}\n", *top);  // DEBUG
+        // fmt::print("    Into: {}\n", *top);  // DEBUG
         if (top->left and top->right) {
             stack.pop_back();
             continue;
         }
-        auto * ptr = &(not top->left ? top->left : top->right);
-        *ptr = std::make_unique<node>(*it);
 
-        if (std::holds_alternative<unary_f>(*it)) {
-            stack.push_back(ptr->get());
-            stack.back()->right = std::make_unique<node>(nothing{});
+        if (std::holds_alternative<unary_f>(top->content)) {
+            auto & ptr = top->left;
+            ptr = std::make_unique<node>(*it);
+            top->right = std::make_unique<node>(nothing{});
+            if (auto && c = ptr->content; std::holds_alternative<unary_f>(c) or std::holds_alternative<binary_f>(c)) {
+                stack.push_back(ptr.get());
+            }
         }
-        else if (std::holds_alternative<binary_f>(*it)) {
-            stack.push_back(ptr->get());
+        else if (std::holds_alternative<binary_f>(top->content)) {
+            auto & ptr = (not top->right ? top->right : top->left);
+            ptr = std::make_unique<node>(*it);
+            if (auto && c = ptr->content; std::holds_alternative<unary_f>(c) or std::holds_alternative<binary_f>(c)) {
+                stack.push_back(ptr.get());
+            }
         }
+        // fmt::print("  Result is {}\n", *head);  // DEBUG
         ++it;
     }
 
+    // fmt::print("Done\n");  // DEBUG
     return head;
 }
 
@@ -458,7 +470,7 @@ auto eval_impl(std::unique_ptr<node> const & head, std::optional<parameter> cons
                     return unary(eval_impl(head->left, param));
                 },
                 [&](binary_f & binary) {
-                    return binary(eval_impl(head->right, param), eval_impl(head->left, param));
+                    return binary(eval_impl(head->left, param), eval_impl(head->right, param));
                 },
                 [ ](nothing) static {
                     throw std::logic_error{"Found (literally) nothing..."};
@@ -476,6 +488,7 @@ auto expression::eval(std::optional<parameter> const & param) const
 
 void optimize(std::unique_ptr<node> & node)  // NOLINT(misc-no-recursion)
 {
+    // return;  // DEBUG
     //Optimization for binary
     if (std::holds_alternative<binary_f>(node->content)) {
         optimize(node->left);
@@ -496,7 +509,7 @@ void optimize(std::unique_ptr<node> & node)  // NOLINT(misc-no-recursion)
                     g = std::move(std::get<unary_f>(right->content))
                 ]
                 (const_t const & a, const_t const & b) mutable {
-                    return f(g(a), b);
+                    return f(a, g(b));
                 };
                 node = std::make_unique<expr::node>(std::move(new_function));
                 node->left  = std::move(left);
@@ -564,6 +577,7 @@ void optimize(std::unique_ptr<node> & node)  // NOLINT(misc-no-recursion)
 
 auto parse_and_build(std::string_view src, std::string_view const param_names) -> std::unique_ptr<node>
 {
+    // fmt::print("Parsing\n");  // DEBUG
     auto result = build_impl(src, param_names);
     // fmt::print("Got result: {}\n", result);  // DEBUG
     optimize(result);

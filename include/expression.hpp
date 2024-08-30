@@ -5,16 +5,17 @@
  * @description : 
  * */
 
-#ifndef PARSER_HPP
-#define PARSER_HPP
+#ifndef BRUN_EXPR_EXPRESSION_HPP
+#define BRUN_EXPR_EXPRESSION_HPP
 
+#include <fmt/core.h>
 #include <memory>
 #include <variant>
 #include <expected>
 #include <functional>
 #include <string_view>
 
-#include <fmt/core.h>
+#include <fmt/std.h>
 
 namespace brun::expr
 {
@@ -88,7 +89,8 @@ struct fmt::formatter<std::function<double(double, double)>> : fmt::formatter<do
 template <typename T>
 struct fmt::formatter<std::unique_ptr<T>> : fmt::formatter<T>
 {
-    auto format(std::unique_ptr<T> const & n, auto & ctx) const {
+    static
+    auto format(std::unique_ptr<T> const & n, fmt::format_context & ctx) {
         if (not n) {
             return fmt::format_to(ctx.out(), "null");
         }
@@ -99,9 +101,12 @@ struct fmt::formatter<std::unique_ptr<T>> : fmt::formatter<T>
 template <>
 struct fmt::formatter<brun::expr::node> : fmt::formatter<double>
 {
-    auto format([[maybe_unused]] auto const & n, auto & ctx) const {
+    static
+    auto format([[maybe_unused]] brun::expr::node const & n, fmt::format_context & ctx)
+        -> fmt::format_context::iterator
+    {
         return fmt::format_to(ctx.out(), "{} .l({}) .r({})", n.content, n.left, n.right);
     }
 };
 
-#endif /* PARSER_HPP */
+#endif /* BRUN_EXPR_EXPRESSION_HPP */
