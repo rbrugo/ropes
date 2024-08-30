@@ -85,7 +85,7 @@ auto acceleration(
         return ph::force{0 * ph::N, (curr.m * mp_units::si::standard_gravity).in(ph::N)};
     };
 
-    static auto internal_damping = [c](ph::state const & curr, ph::state const * const other) {
+    auto internal_damping = [c](ph::state const & curr, ph::state const * const other) {
         if (not other) {
             return zero;
         }
@@ -96,7 +96,7 @@ auto acceleration(
         return - c * radial_velocity;
     };
 
-    static auto external_damping = [b](ph::state const & curr, ph::state const * const other) {
+    auto external_damping = [b](ph::state const & curr, ph::state const * const other) {
         if (not other) {
             return zero;
         }
@@ -122,7 +122,7 @@ auto acceleration(
     // dir = (t[1], -t[0])
     // F = |F| * dir
     // FIXME: does not work correctly - it tries to curl the rope
-    static auto bending_stiffness_force = [E,r](ph::state const * const prv, ph::state const & curr, ph::state const * const nxt) -> ph::force {
+    auto bending_stiffness_force = [E,r](ph::state const * const prv, ph::state const & curr, ph::state const * const nxt) -> ph::force {
         if (not nxt or not prv) {
             return zero;
         }
@@ -152,7 +152,7 @@ auto acceleration(
                        : zero;
     auto const gravitational = enabled.gravity ? gravitational_force(current) : zero;
 
-    auto const damping = 
+    auto const damping =
         (enabled.internal_damping ? internal_damping(current, prev) + internal_damping(current, next) : zero) +
         (enabled.external_damping ? external_damping(current, prev) + external_damping(current, next) : zero);
 
