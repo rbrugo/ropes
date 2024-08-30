@@ -279,15 +279,15 @@ auto equidistant_points_along_function(
     if (total_len.has_value()) {
         auto const len = *total_len;
         auto const ratio = len / cumulative_arc_lengths.back();
-        auto fn = [ratio](auto x) { return x * ratio; };
-        std::ranges::transform(cumulative_arc_lengths, cumulative_arc_lengths.begin(), fn);
-        std::ranges::transform(plot_points, plot_points.begin(), fn);
+        auto fn_ = [ratio](auto x) { return x * ratio; };
+        std::ranges::transform(cumulative_arc_lengths, cumulative_arc_lengths.begin(), fn_);
+        std::ranges::transform(plot_points, plot_points.begin(), fn_);
     }
 
     auto pt_dst = std::views::zip(plot_points, cumulative_arc_lengths);
     auto it = std::ranges::begin(pt_dst);
     auto const pt_end = std::ranges::cend(pt_dst);
-    auto const Δl = cumulative_arc_lengths.back() / n_points;
+    auto const Δl = cumulative_arc_lengths.back() / (n_points - 1);
     auto current_arc = Δl;
     auto equidistant_points = std::vector<math::vector<double, 2>>{plot_points[0]};
     while (true) {
