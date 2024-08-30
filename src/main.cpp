@@ -128,12 +128,9 @@ int main(int argc, char * argv[]) try  // NOLINT
 
     auto const ΔT = 1. / settings.fps;
     auto const δt = settings.dt;
+    auto end = std::chrono::steady_clock::now() + to_chrono_duration(ΔT);
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
-        // take time
 #ifndef NO_GRAPHICS
-        auto const now = std::chrono::steady_clock::now();
-        auto const end = now + to_chrono_duration(ΔT);
-
         // clear the screen
         clear_screen();
 
@@ -282,6 +279,8 @@ int main(int argc, char * argv[]) try  // NOLINT
 
 
         /** IMGUI **/
+        auto const dragging = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
+        SDL_GL_SetSwapInterval(dragging ? 0 : 1);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
@@ -301,7 +300,9 @@ int main(int argc, char * argv[]) try  // NOLINT
         update_screen();
 #endif
 
-        if (not pause or step) {
+        auto const now = std::chrono::steady_clock::now();
+        if (now >= end and (not pause or step)) {
+            end = now + to_chrono_duration(ΔT);;
             step = false;
             // update the simulation
             auto Δt = ph::duration::zero();
@@ -315,9 +316,9 @@ int main(int argc, char * argv[]) try  // NOLINT
 
 #ifndef NO_GRAPHICS
         // wait
-        if (settings.fps < 60 * ph::Hz) {
-            std::this_thread::sleep_until(end);
-        }
+        // if (settings.fps < 60 * ph::Hz) {
+        //     std::this_thread::sleep_until(end);
+        // }
 #endif
     }
 #ifdef NO_GRAPHICS
