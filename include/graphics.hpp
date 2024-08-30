@@ -75,9 +75,12 @@ auto map_from_screen(gfx::screen_config const & config) noexcept {
     };
 }
 
+inline
+void vertex(std::array<double, 2> const & pt) noexcept { return glVertex2d(pt[0], pt[1]); }
+
 
 inline
-void draw_square(std::array<double, 2> const & p, math::vector<int, 2> screen_size)
+void draw_square(std::array<double, 2> const & p, math::vector<int, 2> screen_size) noexcept
 {
     constexpr auto side = 3.f;
     auto const [w, h] = math::vector_cast<float>(screen_size);
@@ -123,8 +126,8 @@ void render(Rope const & rope, ph::length l0, screen_config const & config)
         glColor3ub(c[0], c[1], c[2]);  // NOLINT
         if (i != 0) {
             glBegin(GL_LINES);
-            glVertex2f(points[i - 1][0], points[i - 1][1]);
-            glVertex2f(points[i][0], points[i][1]);
+            vertex(points[i - 1]);
+            vertex(points[i]);
             glEnd();
         }
         draw_square(points[i], config.screen_size);
@@ -144,10 +147,11 @@ void draw_window(char const * const title, Fn && fn, Ts ...size) {
 }
 
 template <typename Fn>
-void tree_node(char const * title, Fn && fn) {
-    if (ImGui::TreeNode(title)) {
+void tree_node(char const * title, bool & enabled, Fn && fn) {
+    ImGui::Checkbox(fmt::format("##{}", title).c_str(), &enabled);
+    ImGui::SameLine();
+    if (ImGui::CollapsingHeader(title)) {
         std::forward<Fn>(fn)();
-        ImGui::TreePop();
     }
 }
 

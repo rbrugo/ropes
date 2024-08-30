@@ -116,10 +116,9 @@ void forces_ui_fn::operator()() const noexcept
 
     auto & enable = settings->enabled;
 
-    gfx::tree_node("Elastic force", [&] {
+    gfx::tree_node("Elastic force", enable.elastic, [&] {
         constexpr auto min = 0.;
         constexpr auto max = 10'000.;
-        ImGui::Checkbox("Enable force", &enable.elastic);
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
         MAYBE_ENABLED(
             enable.elastic,
@@ -129,26 +128,22 @@ void forces_ui_fn::operator()() const noexcept
             settings->elastic_constant = sym::constants::k; // FIXME: real value is set on startup
         }
     });
-    gfx::tree_node("Gravity", [&] {
-        ImGui::Checkbox("Enable force", &enable.gravity);
-    });
-    gfx::tree_node("External damping", [&] {
+    gfx::tree_node("Gravity", enable.gravity, [] {});
+    gfx::tree_node("External damping", enable.external_damping, [&] {
         constexpr auto min = 0.;
         constexpr auto max = 1.;
-        ImGui::Checkbox("Enable force", &enable.external_damping);
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
         MAYBE_ENABLED(
             enable.external_damping,
-            ImGui::SliderScalar("Internal damping (b)", ImGuiDataType_Double, REF(external_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
+            ImGui::SliderScalar("External damping (b)", ImGuiDataType_Double, REF(external_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
         );
         if (ImGui::Button("Reset")) {
             settings->external_damping = sym::constants::b; // FIXME: real value is set on startup
         }
     });
-    gfx::tree_node("Internal damping", [&] {
+    gfx::tree_node("Internal damping", enable.internal_damping, [&] {
         constexpr auto min = 0.;
         constexpr auto max = 1.;
-        ImGui::Checkbox("Enable force", &enable.internal_damping);
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
         MAYBE_ENABLED(
             enable.internal_damping,
@@ -158,12 +153,11 @@ void forces_ui_fn::operator()() const noexcept
             settings->internal_damping = sym::constants::c; // FIXME: real value is set on startup
         }
     });
-    gfx::tree_node("Flexural rigidity", [&] {
+    gfx::tree_node("Flexural rigidity", enable.flexural_rigidity, [&] {
         constexpr auto E_min = 0.;
         constexpr auto E_max = 10.;
         constexpr auto r_min = 0.4;
         constexpr auto r_max = 18.;
-        ImGui::Checkbox("Enable force", &enable.flexural_rigidity);
         ImGui::SetNextItemWidth(100);
         MAYBE_ENABLED(
             enable.flexural_rigidity,
@@ -310,7 +304,6 @@ void rope_editor_fn::operator()() noexcept
 
     if (preview or apply) {
         update = true;
-        fmt::print("True\n");
         x_expr = eval(x_formula);
         y_expr = eval(y_formula);
         if (not x_expr.has_value() or not y_expr.has_value()) {
@@ -326,7 +319,6 @@ void rope_editor_fn::operator()() noexcept
             return math::vector<double, 2>{x(n), -y(n)};
         };
         *rope = sym::construct_rope(*settings, fn, equalize_distance);
-        ;
         *t = settings->t0;
     }
 
