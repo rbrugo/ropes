@@ -274,7 +274,7 @@ constexpr inline vector_cast_fn<To> vector_cast;
 constexpr inline struct cosine_fn {
     template <typename T, std::size_t N, typename U = T>
     [[nodiscard]] static constexpr
-    auto operator()(vector<T, N> const & v1, vector<T, N> const & v2) noexcept
+    auto operator()(vector<T, N> const & v1, vector<U, N> const & v2) noexcept
     { return (v1 * v2) / (norm(v1) * norm(v2)); }
 } cosine;
 
@@ -282,7 +282,7 @@ constexpr inline struct cosine_fn {
 constexpr inline struct sine_fn {
     template <typename T, typename U = T>
     [[nodiscard]] static constexpr
-    auto operator()(vector<T, 2> const & v1, vector<T, 2> const & v2) noexcept
+    auto operator()(vector<T, 2> const & v1, vector<U, 2> const & v2) noexcept
     { return (v1[0] * v2[1] - v1[1] * v2[0]) / (norm(v1) * norm(v2)); }
 } sine;
 
