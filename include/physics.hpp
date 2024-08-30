@@ -53,6 +53,11 @@ using energy = quantity<J>;
 
 using framerate = quantity<Hz>;
 
+struct metadata
+{
+    ph::force f;
+};
+
 struct state
 {
     ph::position x;
@@ -65,6 +70,12 @@ struct derivative
 {
     ph::velocity dx;
     ph::acceleration dv;
+};
+
+struct simulation_data
+{
+    std::vector<ph::state> state;
+    std::vector<ph::metadata> metadata;
 };
 }  // namespace ph
 

@@ -34,10 +34,10 @@ auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
 }
 
 auto rope_editor_ui(sym::settings const & settings,
-                    auto & rope, ph::duration & time,
+                    auto & rope, auto & metadata, ph::duration & time,
                     std::string_view x_opt, std::string_view y_opt
 ) -> gfx::rope_editor_fn {
-    return gfx::rope_editor_fn{settings, rope, time, x_opt, y_opt};
+    return gfx::rope_editor_fn{settings, rope, metadata, time, x_opt, y_opt};
 }
 
 auto data_ui(sym::settings const & settings, auto const & rope, ph::time t, int steps)
@@ -81,6 +81,7 @@ int main(int argc, char * argv[]) try  // NOLINT
         options.fps.value() * ph::Hz,
         options.duration.value() * ph::s
     };
+    constexpr auto get_metadata = true;
 
     dump_settings(settings);
 
@@ -103,6 +104,7 @@ int main(int argc, char * argv[]) try  // NOLINT
     auto y_expr = brun::expr::parse_expression(options.y.value(), "t");
     auto fn = [x=x_expr.value()['t'], y=y_expr.value()['t']](auto t) { return ph::vector<>{x(t), -y(t)}; };
     auto rope = sym::construct_rope(settings, fn);
+    auto metadata = std::vector<ph::metadata>{};
 
     auto [quit, pause, step] = std::array{false, *options.pause, false};
 
@@ -277,6 +279,19 @@ int main(int argc, char * argv[]) try  // NOLINT
         auto const points = rope | std::views::transform(&ph::state::x);
         gfx::render(points, settings.segment_length, config);
 
+        if (get_metadata) {
+            auto as_numbers = [](auto const & meta) {
+                return meta.f.transform([](auto const & f) { return f.numerical_value_in(ph::N); });
+            };
+            auto sizes = metadata
+                       | std::views::transform(as_numbers)
+                       | std::views::transform([](auto x) { return math::vector{x[0], -x[1]}; });
+            auto pairs = std::views::zip(points, sizes);
+            for (auto const & [from, size] : pairs) {
+                gfx::draw_arrow(from, size, config);
+            }
+        }
+
 
         /** IMGUI **/
         auto const dragging = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
@@ -288,7 +303,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 
         gfx::draw_window("Data", data_ui(settings, rope, t, steps));
         gfx::draw_window("Forces", forces_ui(settings));
-        gfx::draw_window("Rope",  rope_editor_ui(settings, rope, t, *options.x, *options.y));
+        gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t, *options.x, *options.y));
 
         // ImGui::ShowDemoWindow();
 
@@ -308,7 +323,9 @@ int main(int argc, char * argv[]) try  // NOLINT
             auto Δt = ph::duration::zero();
             steps = 0;
             for (; Δt < ΔT; Δt += δt) {
-                rope = sym::integrate(settings, rope, t + Δt, δt);
+                auto res = sym::integrate(settings, rope, t + Δt, δt, get_metadata);
+                rope = std::move(res.state);
+                metadata = std::move(res.metadata);
                 ++steps;
             }
             t += Δt;

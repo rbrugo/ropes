@@ -99,7 +99,8 @@ auto acceleration(
     ph::state const & current,
     ph::state const * const prev,
     ph::state const * const next,
-    [[maybe_unused]] ph::time const t
+    [[maybe_unused]] ph::time const t,
+    [[maybe_unused]] ph::metadata * metadata = nullptr
 ) -> ph::acceleration;
 
 
@@ -113,7 +114,8 @@ auto evaluate(
     Derivatives && derivatives,
     int idx,
     [[maybe_unused]] ph::time t,
-    ph::duration dt
+    ph::duration dt,
+    ph::metadata * metadata = nullptr
 ) -> ph::derivative
 {
     auto const & curr = states[idx];
@@ -122,25 +124,31 @@ auto evaluate(
 
     auto prev = std::optional<ph::state>{std::nullopt};
     if (idx > 0) {
-        auto const s = states[idx - 1];
-        auto const d = derivatives[idx - 1];
+        auto const & s = states[idx - 1];
+        auto const & d = derivatives[idx - 1];
         prev = ph::state{s.x + d.dx * dt, s.v + d.dv * dt, s.m, s.fixed};
     }
 
     auto next = std::optional<ph::state>{std::nullopt};
     if (idx + 1 < std::ssize(states)) {
-        auto const s = states[idx + 1];
-        auto const d = derivatives[idx + 1];
+        auto const & s = states[idx + 1];
+        auto const & d = derivatives[idx + 1];
         next = ph::state{s.x + d.dx * dt, s.v + d.dv * dt, s.m, s.fixed};
     }
 
     return ph::derivative{
         current.v,
-        sym::acceleration(settings, current, prev ? &*prev : nullptr, next ? &*next : nullptr, t)
+        sym::acceleration(settings, current, prev ? &*prev : nullptr, next ? &*next : nullptr, t, metadata)
     };
 }
 
-auto integrate(sym::settings const & settings, std::span<ph::state const> const states, ph::time t, ph::duration dt) -> std::vector<ph::state>;
+auto integrate(
+    sym::settings const & settings,
+    std::span<ph::state const> const states,
+    ph::time t,
+    ph::duration dt,
+    bool save = false
+) -> ph::simulation_data;
 
 /**
  * @brief Construct the rope using a function.

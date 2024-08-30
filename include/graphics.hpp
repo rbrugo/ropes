@@ -46,13 +46,6 @@ struct screen_config
 [[nodiscard]]
 auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff;
 
-void draw_arrow(
-    gfx::renderer & renderer,
-    int x, int y,
-    std::array<double, 2> const & v, std::array<int, 3> color = {0xFF, 0xCC, 0xFF}
-) noexcept;
-
-
 [[nodiscard]] constexpr
 auto map_to_screen(gfx::screen_config const & config) noexcept {
     return [&config](ph::position v) -> math::vector<double, 2> {
@@ -77,6 +70,44 @@ auto map_from_screen(gfx::screen_config const & config) noexcept {
 
 inline
 void vertex(std::array<double, 2> const & pt) noexcept { return glVertex2d(pt[0], pt[1]); }
+
+
+inline
+void draw_arrow(
+    ph::position const & from_,
+    math::vector<double, 2> const & size,
+    gfx::screen_config const & config,
+    std::array<int, 3> color = {0xFF, 0xCC, 0xFF}
+) noexcept
+{
+    constexpr auto head_width = 15.f;
+    constexpr auto head_height = 17.f;
+    auto const from = map_to_screen(config)(from_);
+    auto const [w, h] = static_cast<math::vector<float, 2>>(config.screen_size);
+    auto const head_w = head_width / w;
+    auto const head_h = head_height / h;
+
+    auto const to = from + size;
+    auto const direction = math::unit(size);
+    auto const ortho = math::vector{-direction[1], direction[0]};
+
+    auto const arrow_head_base = to - direction * head_h;
+
+    auto const arrow_head_pt1 = arrow_head_base + ortho * head_w / 2;
+    auto const arrow_head_pt2 = arrow_head_base - ortho * head_w / 2;
+
+    glColor3ub(color[0], color[1], color[2]);  // NOLINT
+    glBegin(GL_LINES);
+    vertex(from);
+    vertex(to);
+    glEnd();
+
+    glBegin(GL_TRIANGLES);
+    vertex(to);
+    vertex(arrow_head_pt1);
+    vertex(arrow_head_pt2);
+    glEnd();
+}
 
 
 inline
@@ -180,16 +211,20 @@ struct data_ui_fn {
 struct rope_editor_fn {
     sym::settings const * settings;
     std::vector<ph::state> * rope;
+    std::vector<ph::metadata> * metadata;
     ph::duration * t;
     std::string_view x;
     std::string_view y;
     explicit rope_editor_fn(
         sym::settings const & settings,
-        auto & rope, ph::duration & time,
+        auto & rope,
+        auto & metadata,
+        ph::duration & time,
         std::string_view x_opt, std::string_view y_opt
     ) :
         settings{std::addressof(settings)},
         rope{std::addressof(rope)},
+        metadata{std::addressof(metadata)},
         t{std::addressof(time)},
         x{x_opt},
         y{y_opt}

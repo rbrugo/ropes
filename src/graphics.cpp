@@ -319,6 +319,7 @@ void rope_editor_fn::operator()() noexcept
             return math::vector<double, 2>{x(n), -y(n)};
         };
         *rope = sym::construct_rope(*settings, fn, equalize_distance);
+        metadata->clear();
         *t = settings->t0;
     }
 

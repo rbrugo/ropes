@@ -45,7 +45,8 @@ auto acceleration(
     ph::state const & current,
     ph::state const * const prev,
     ph::state const * const next,
-    [[maybe_unused]] ph::time const t
+    [[maybe_unused]] ph::time const t,
+    ph::metadata * metadata
 ) -> ph::acceleration
 {
     if (current.fixed) {
@@ -166,6 +167,9 @@ auto acceleration(
                                  ? bending_stiffness_force(prev, current, next)
                                  : zero;
 
+    if (metadata != nullptr) {
+        metadata->f = bending_stiffness;
+    }
     return (elastic + gravitational + damping + bending_stiffness) * (1. / current.m);
 }
 
@@ -173,16 +177,24 @@ auto integrate(
     sym::settings const & settings,
     std::span<ph::state const> const states,
     ph::time t,
-    ph::duration dt
-) -> std::vector<ph::state>
+    ph::duration dt,
+    bool save
+) -> ph::simulation_data
 {
     auto const n = std::ssize(states);
     auto const d0 = ph::derivative{ph::velocity::zero(), ph::acceleration::zero()};
 
-    auto do_evaluate = [&settings, states, t, dt] (auto && derivatives, double time_scale) {
+    using meta_t = std::vector<ph::metadata>;
+    auto metadata = meta_t{};
+    if (save) {
+        metadata.resize(states.size());
+    }
+    auto meta_ptr = save ? std::addressof(metadata) : nullptr;
+
+    auto do_evaluate = [&settings, states, t, dt] (auto && derivatives, double time_scale, meta_t * ptr = nullptr) {
         auto ds = std::views::all(std::forward<decltype(derivatives)>(derivatives));
-        return [&settings, states, t, dt, ds, time_scale] (auto i) {
-            return evaluate(settings, states, ds, i, t, dt * time_scale);
+        return [&settings, states, t, dt, ds, time_scale, ptr] (auto i) {
+            return evaluate(settings, states, ds, i, t, dt * time_scale, ptr ? &(*ptr)[i] : nullptr);
         };
     };
 
@@ -192,7 +204,7 @@ auto integrate(
             | std::ranges::to<std::vector>();
     auto cs = std::views::transform(std::views::iota(0, n), do_evaluate(bs, 0.5))
             | std::ranges::to<std::vector>();
-    auto ds = std::views::transform(std::views::iota(0, n), do_evaluate(cs, 1.0))
+    auto ds = std::views::transform(std::views::iota(0, n), do_evaluate(cs, 1.0, meta_ptr))
             | std::ranges::to<std::vector>();
 
     auto evolve = [dt](auto && curr, auto a, auto b, auto c, auto d) {
@@ -202,10 +214,12 @@ auto integrate(
         return ph::state{curr.x + dxdt * dt, curr.v + dvdt * dt, curr.m, curr.fixed};
     };
 
-    return std::views::zip(states, as, bs, cs, ds)
-         | std::views::transform([&](auto && tp) { return std::apply(evolve, FWD(tp)); })
-         | std::ranges::to<std::vector<ph::state>>()
-         ;
+    return {
+        std::views::zip(states, as, bs, cs, ds)
+        | std::views::transform([&](auto && tp) { return std::apply(evolve, FWD(tp)); })
+        | std::ranges::to<std::vector<ph::state>>(),
+        std::move(metadata)
+    };
 }
 
 auto construct_rope(
