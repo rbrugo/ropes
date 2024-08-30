@@ -70,7 +70,8 @@ struct derivative
 
 template <> struct fmt::formatter<ph::state> : fmt::formatter<std::string_view>
 {
-    auto format(ph::state const & s, format_context & ctx) const {
+    static constexpr
+    auto format(ph::state const & s, format_context & ctx) {
         auto const & [x, v, m, f] = s;
         return fmt::format_to(ctx.out(), "x: {}, v: {}, m: {}, fixed: {}", x, v, m, f);
     }
@@ -78,11 +79,11 @@ template <> struct fmt::formatter<ph::state> : fmt::formatter<std::string_view>
 
 template <> struct fmt::formatter<ph::derivative> : fmt::formatter<std::string_view>
 {
-    auto format(ph::derivative const & s, format_context & ctx) const {
+    static constexpr
+    auto format(ph::derivative const & s, format_context & ctx) {
         auto const & [dx, dv] = s;
         return fmt::format_to(ctx.out(), "δx: {}, δv: {}", dx, dv);
     }
 };
 
 #endif /* PHYSICS_HPP */
-
