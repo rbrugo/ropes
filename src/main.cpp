@@ -179,91 +179,91 @@ int main(int argc, char * argv[]) try  // NOLINT
                 }
                 break;
             case SDL_MOUSEWHEEL:
-                // if (event.wheel.y > 0) {
-                //     player.hook.length -= 5;
-                // } else if (event.wheel.y < 0) {
-                //     player.hook.length += 5;
-                // }
+                if (event.wheel.y > 0) {
+                    config.scale += 0.5;
+                } else if (event.wheel.y < 0) {
+                    config.scale -= 0.5;
+                }
                 // player.hook.length = std::clamp<physics::scalar>(player.hook.length, 5, 400);
                 break;
-            case SDL_MOUSEMOTION:
-                mouse.x() = event.motion.x;
-                mouse.y() = event.motion.y;
-                if (dragged.has_value()) {
-                    rope[dragged->index].x = gfx::map_from_screen(config)(mouse);
-                }
-                break;
-            case SDL_MOUSEBUTTONUP: {
-                if (ImGui::GetIO().WantCaptureMouse) {
-                    break;
-                }
-                switch (event.button.button) {
-                    case SDL_BUTTON_LEFT: {
-                        if (dragged.has_value()) {
-                            rope[dragged->index].fixed = dragged->was_fixed;
-                            dragged = std::nullopt;
-                        }
-                    }
-                }
-                break;
-            }
-            case SDL_MOUSEBUTTONDOWN: {
-                if (ImGui::GetIO().WantCaptureMouse) {
-                    break;
-                }
-                auto distance = [x0 = gfx::map_from_screen(config)(mouse)](ph::position x) {
-                    return math::squared_norm(x - x0);
-                };
-                switch (event.button.button) {
-                    // left click to move a point
-                    case SDL_BUTTON_LEFT: {
-                        auto distances = rope
-                                       | std::views::transform(&ph::state::x)
-                                       | std::views::transform(distance)
-                                       ;
-                        mouse.clicking = true;
-                        // find the nearest point
-                        auto nearest = std::ranges::min_element(distances).base().base();
-                        auto idx = std::ranges::distance(rope.begin(), nearest);
-                        dragged = dragged_info{ .index = idx, .was_fixed = rope[idx].fixed };
-                        // fix the point
-                        rope[idx].fixed = true;
-                        rope[idx].v = ph::velocity::zero();
-                        break;
-                    }
-                    // right click to statically fix a point,
-                    case SDL_BUTTON_RIGHT: {
-                        auto fixed = manually_fixed
-                                   | std::views::transform([&](auto i) { return rope[i]; })
-                                   | std::views::transform(&ph::state::x)
-                                   | std::views::transform(distance)
-                                   ;
-                        auto nearest_locked = std::ranges::min_element(fixed);
-                        if (not manually_fixed.empty() and (*nearest_locked).numerical_value_in(ph::m2) * config.scale <= 100*100) {
-                            auto it = nearest_locked.base().base().base().base();
-                            auto idx = *it;
-                            rope[idx].fixed = false;
-                            std::ranges::iter_swap(manually_fixed.end() - 1, it);
-                            manually_fixed.pop_back();
-                        } else {
-                            auto distances = rope
-                                | std::views::filter(std::not_fn(&ph::state::fixed))
-                                | std::views::transform(&ph::state::x)
-                                | std::views::transform(distance)
-                                ;
-                            auto nearest = std::ranges::min_element(distances).base().base().base();
-                            if (nearest == rope.end()) {
-                                break;
-                            }
-                            auto idx = std::ranges::distance(rope.begin(), nearest);
-                            manually_fixed.push_back(idx);
-                            rope[idx].fixed = true;
-                            rope[idx].v = ph::velocity::zero();
-                        }
-                        break;
-                    }
-                }
-            }
+            // case SDL_MOUSEMOTION:
+            //     mouse.x() = event.motion.x;
+            //     mouse.y() = event.motion.y;
+            //     if (dragged.has_value()) {
+            //         rope[dragged->index].x = gfx::map_from_screen(config)(mouse);
+            //     }
+            //     break;
+            // case SDL_MOUSEBUTTONUP: {
+            //     if (ImGui::GetIO().WantCaptureMouse) {
+            //         break;
+            //     }
+            //     switch (event.button.button) {
+            //         case SDL_BUTTON_LEFT: {
+            //             if (dragged.has_value()) {
+            //                 rope[dragged->index].fixed = dragged->was_fixed;
+            //                 dragged = std::nullopt;
+            //             }
+            //         }
+            //     }
+            //     break;
+            // }
+            // case SDL_MOUSEBUTTONDOWN: {
+            //     if (ImGui::GetIO().WantCaptureMouse) {
+            //         break;
+            //     }
+            //     auto distance = [x0 = gfx::map_from_screen(config)(mouse)](ph::position x) {
+            //         return math::squared_norm(x - x0);
+            //     };
+            //     switch (event.button.button) {
+            //         // left click to move a point
+            //         case SDL_BUTTON_LEFT: {
+            //             auto distances = rope
+            //                            | std::views::transform(&ph::state::x)
+            //                            | std::views::transform(distance)
+            //                            ;
+            //             mouse.clicking = true;
+            //             // find the nearest point
+            //             auto nearest = std::ranges::min_element(distances).base().base();
+            //             auto idx = std::ranges::distance(rope.begin(), nearest);
+            //             dragged = dragged_info{ .index = idx, .was_fixed = rope[idx].fixed };
+            //             // fix the point
+            //             rope[idx].fixed = true;
+            //             rope[idx].v = ph::velocity::zero();
+            //             break;
+            //         }
+            //         // right click to statically fix a point,
+            //         case SDL_BUTTON_RIGHT: {
+            //             auto fixed = manually_fixed
+            //                        | std::views::transform([&](auto i) { return rope[i]; })
+            //                        | std::views::transform(&ph::state::x)
+            //                        | std::views::transform(distance)
+            //                        ;
+            //             auto nearest_locked = std::ranges::min_element(fixed);
+            //             if (not manually_fixed.empty() and (*nearest_locked).numerical_value_in(ph::m2) * config.scale <= 100*100) {
+            //                 auto it = nearest_locked.base().base().base().base();
+            //                 auto idx = *it;
+            //                 rope[idx].fixed = false;
+            //                 std::ranges::iter_swap(manually_fixed.end() - 1, it);
+            //                 manually_fixed.pop_back();
+            //             } else {
+            //                 auto distances = rope
+            //                     | std::views::filter(std::not_fn(&ph::state::fixed))
+            //                     | std::views::transform(&ph::state::x)
+            //                     | std::views::transform(distance)
+            //                     ;
+            //                 auto nearest = std::ranges::min_element(distances).base().base().base();
+            //                 if (nearest == rope.end()) {
+            //                     break;
+            //                 }
+            //                 auto idx = std::ranges::distance(rope.begin(), nearest);
+            //                 manually_fixed.push_back(idx);
+            //                 rope[idx].fixed = true;
+            //                 rope[idx].v = ph::velocity::zero();
+            //             }
+            //             break;
+            //         }
+            //     }
+            // }
             default:
                 break;
             }
