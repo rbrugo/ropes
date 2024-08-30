@@ -232,7 +232,7 @@ auto construct_rope(
         ? equidistant_points_along_function(f, n_points, total_length)
         : points_along_function(f, n_points, total_length);
 
-    auto at_idx = [&points](int idx) { return points[idx]; };
+    auto at_idx = [&points](int idx) { return points.at(idx); };
     auto mkstate = [&](int idx) {
         return ph::state{
             .x = at_idx(idx) * ph::m,
@@ -315,6 +315,12 @@ auto equidistant_points_along_function(
         auto new_pt = pt + (p_next - pt) * Δl / (l_next - current_arc + Δl);
         equidistant_points.push_back(new_pt);
         current_arc += Δl;
+    }
+    if (std::ssize(equidistant_points) != n_points) {
+        if (n_points - equidistant_points.size() > 1) {
+            fmt::print("ERROR - different number of points: : {} instead of {}\n", equidistant_points.size(), n_points);
+        }
+        equidistant_points.push_back(plot_points.back());
     }
     return equidistant_points;
 }
