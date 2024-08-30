@@ -143,8 +143,14 @@ auto acceleration(
         auto const modulus = 2 * bending_moment / (nΔx1 + nΔx2);  // using the full arc length
 
         auto const tg = math::unit(Δx1 + Δx2);  // using the weighted direction
+        auto const normal = math::vector{-tg[1], tg[0]};  // Perpendicular direction
 
-        return modulus * math::vector{-tg[1], tg[0]};
+        // Determine the sign by checking the relative position of nxt and prv
+        auto const sign = (math::cosine(normal, Δx1) >= 0 * mp_units::one
+                       and math::cosine(normal, Δx2) >= 0 * mp_units::one)
+                         ? 1. : -1; 
+
+        return sign * modulus * normal;
     };
 
     auto const elastic = enabled.elastic
