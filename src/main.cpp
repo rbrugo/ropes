@@ -33,11 +33,10 @@ auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
     return gfx::forces_ui_fn{settings};
 }
 
-auto rope_editor_ui(sym::settings const & settings,
-                    auto & rope, auto & metadata, ph::duration & time,
-                    std::string_view x_opt, std::string_view y_opt
+auto rope_editor_ui(
+    sym::settings & settings, auto & rope, auto & metadata, ph::duration & time
 ) -> gfx::rope_editor_fn {
-    return gfx::rope_editor_fn{settings, rope, metadata, time, x_opt, y_opt};
+    return gfx::rope_editor_fn{settings, rope, metadata, time};
 }
 
 auto data_ui(sym::settings const & settings, auto const & rope, ph::time t, int steps)
@@ -59,10 +58,10 @@ struct options
     std::optional<double> fps = sym::constants::fps.numerical_value_in(ph::Hz);
     std::optional<double> duration = sym::constants::t1.numerical_value_in(ph::s);
     std::optional<bool> pause = false;
-    std::optional<std::string> x = "t";
-    std::optional<std::string> y = "0";
+    std::optional<std::string> x_formula = "t";
+    std::optional<std::string> y_formula = "0";
 };
-STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration, pause, x, y);
+STRUCTOPT(options, n, k, E, b, c, total_length, diameter, linear_density, dt, fps, duration, pause, x_formula, y_formula);
 
 int main(int argc, char * argv[]) try  // NOLINT
 {
@@ -79,7 +78,9 @@ int main(int argc, char * argv[]) try  // NOLINT
         options.linear_density.value() * ph::kg / ph::m,
         options.dt.value() * ph::s,
         options.fps.value() * ph::Hz,
-        options.duration.value() * ph::s
+        options.duration.value() * ph::s,
+        *options.x_formula,
+        *options.y_formula,
     };
     constexpr auto get_metadata = true;
 
@@ -100,8 +101,8 @@ int main(int argc, char * argv[]) try  // NOLINT
     };
 #endif
 
-    auto x_expr = brun::expr::parse_expression(options.x.value(), "t");
-    auto y_expr = brun::expr::parse_expression(options.y.value(), "t");
+    auto x_expr = brun::expr::parse_expression(settings.x_formula, "t");
+    auto y_expr = brun::expr::parse_expression(settings.y_formula, "t");
     auto fn = [x=x_expr.value()['t'], y=y_expr.value()['t']](auto t) { return ph::vector<>{x(t), -y(t)}; };
     auto rope = sym::construct_rope(settings, fn);
     auto metadata = std::vector<ph::metadata>{};
@@ -319,7 +320,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 
         gfx::draw_window("Data", data_ui(settings, rope, t, steps));
         gfx::draw_window("Forces", forces_ui(settings));
-        gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t, *options.x, *options.y));
+        gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t));
 
         // ImGui::ShowDemoWindow();
 

@@ -12,6 +12,7 @@
 #include <mp-units/math.h>
 #include <numbers>
 #include <ranges>
+#include <expression.hpp>
 
 namespace sym {
 
@@ -234,12 +235,12 @@ auto integrate(
 }
 
 auto construct_rope(
-    sym::settings const & settings, std::function<ph::vector<>(double)> const & f, bool equalize_distance
+    sym::settings const & settings, std::function<ph::vector<>(double)> const & f
 ) -> std::vector<ph::state>
 {
     auto total_length = settings.total_length.numerical_value_in(ph::m);
     auto n_points = settings.number_of_points;
-    auto points = equalize_distance
+    auto points = settings.equalize_distance
         ? equidistant_points_along_function(f, n_points, total_length)
         : points_along_function(f, n_points, total_length);
 
@@ -292,7 +293,7 @@ auto equidistant_points_along_function(
         | std::ranges::to<std::vector>();
     auto distance = [](auto p) {
         auto [a, b] = p;
-        return math::norm(a - b);
+        return std::min(math::norm(a - b), 1e9);
     };
     auto arc_lengths = plot_points
         | std::views::adjacent<2>
@@ -300,6 +301,12 @@ auto equidistant_points_along_function(
     ;
     auto cumulative_arc_lengths = std::vector<double>(plot_points.size(), 0);
     std::partial_sum(arc_lengths.begin(), arc_lengths.end(), cumulative_arc_lengths.begin() + 1);
+
+    if (std::isinf(cumulative_arc_lengths.back())) {
+        fmt::print("Runtime error - infinite rope length:\n");
+        fmt::print("{}\n", cumulative_arc_lengths);
+        std::exit(1);
+    }
 
     if (total_len.has_value()) {
         auto const len = *total_len;
@@ -336,6 +343,28 @@ auto equidistant_points_along_function(
     return equidistant_points;
 }
 
+
+void reset(
+    sym::settings & settings,
+    std::vector<ph::state> & rope, std::vector<ph::metadata> & metadata,
+    ph::duration & t
+)
+{
+    using maybe_expression = std::expected<brun::expr::expression, std::string>;
+    auto eval = [](auto & arr) -> maybe_expression {
+        auto ptr = arr.data();
+        return brun::expr::parse_expression(std::string_view{ptr, std::strlen(ptr)}, "t");
+    };
+    auto x_expr = eval(settings.x_formula);
+    auto y_expr = eval(settings.y_formula);
+    auto const fn = [x=(x_expr.value())['t'],y=(y_expr.value())['t']] (auto n) {
+        return math::vector<double, 2>{x(n), -y(n)};
+    };
+    rope = sym::construct_rope(settings, fn);
+    metadata.clear();
+    t = settings.t0;
+}
+
 }  // namespace sym
 
 void dump_settings(sym::settings const & settings) noexcept {
@@ -343,10 +372,13 @@ void dump_settings(sym::settings const & settings) noexcept {
         n, k, E, b, c,
         total_length, diameter, segment_length, linear_density, segment_mass,
         t0, t1, dt, fps,
+        x_formula, y_formula, equalize_distance,
         enabled
     ] = settings;
     auto const g = (1. * mp_units::si::standard_gravity).in(ph::N / ph::kg);
     fmt::print("Number of points (n):             {}\n", n);
+    fmt::print("Starting formulas:                x(t) = {}\n", x_formula);
+    fmt::print("                                  y(t) = {}\n", y_formula);
     fmt::print("Elastic constant (k):             {}\n", k);
     fmt::print("Young modulus (E):                {}\n", E);
     fmt::print("External damping coefficient (b): {}\n", b);

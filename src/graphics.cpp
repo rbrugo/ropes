@@ -274,19 +274,21 @@ void rope_editor_fn::operator()() noexcept
 {
     using maybe_expression = std::expected<brun::expr::expression, std::string>;
     static auto update = true;
-    static auto x_formula = [this] {
+    auto & x = settings->x_formula;
+    auto & y = settings->y_formula;
+    static auto x_formula = [&x] {
         auto base = std::array<char, 128>{};
         std::ranges::copy(x, base.begin());
         return base;
     }();
-    static auto y_formula = [this] {
+    static auto y_formula = [&y] {
         auto base = std::array<char, 128>{};
         std::ranges::copy(y, base.begin());
         return base;
     }();
     static auto x_expr = maybe_expression{brun::expr::expression{x, "t"}};
     static auto y_expr = maybe_expression{brun::expr::expression{y, "t"}};
-    static auto equalize_distance = true;
+    auto & equalize_distance = settings->equalize_distance;
 
     ImGui::InputTextWithHint("= x(t)", x.data(), x_formula.data(), x_formula.size());
     ImGui::InputTextWithHint("= y(t)", y.data(), y_formula.data(), y_formula.size());
@@ -307,6 +309,7 @@ void rope_editor_fn::operator()() noexcept
         x_expr = eval(x_formula);
         y_expr = eval(y_formula);
         if (not x_expr.has_value() or not y_expr.has_value()) {
+            apply = false;
             fmt::print("Bad formula!\n");
             ImVec2 center = ImGui::GetMainViewport()->GetCenter();
             ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -315,12 +318,9 @@ void rope_editor_fn::operator()() noexcept
     }
 
     if (apply) {
-        auto const fn = [x=(*x_expr)['t'],y=(*y_expr)['t']] (auto n) {
-            return math::vector<double, 2>{x(n), -y(n)};
-        };
-        *rope = sym::construct_rope(*settings, fn, equalize_distance);
-        metadata->clear();
-        *t = settings->t0;
+        settings->x_formula = x_formula | std::ranges::to<std::string>();
+        settings->y_formula = y_formula | std::ranges::to<std::string>();
+        sym::reset(*settings, *rope, *metadata, *t);
     }
 
     if (auto h = ImGui::GetContentRegionAvail().x; ImPlot::BeginPlot("Equalized", ImVec2(h, h))) {
@@ -371,7 +371,6 @@ void rope_editor_fn::operator()() noexcept
     if (update) {
         update = false;
     }
-};
-
+}
 }  // namespace gfx
 // NOLINTEND(concurrency-mt-unsafe)

@@ -209,25 +209,21 @@ struct data_ui_fn {
 };
 
 struct rope_editor_fn {
-    sym::settings const * settings;
+    sym::settings * settings;
     std::vector<ph::state> * rope;
     std::vector<ph::metadata> * metadata;
     ph::duration * t;
-    std::string_view x;
-    std::string_view y;
+
     explicit rope_editor_fn(
-        sym::settings const & settings,
+        sym::settings & settings,
         auto & rope,
         auto & metadata,
-        ph::duration & time,
-        std::string_view x_opt, std::string_view y_opt
+        ph::duration & time
     ) :
         settings{std::addressof(settings)},
         rope{std::addressof(rope)},
         metadata{std::addressof(metadata)},
-        t{std::addressof(time)},
-        x{x_opt},
-        y{y_opt}
+        t{std::addressof(time)}
     {}
 
     void operator()() noexcept;

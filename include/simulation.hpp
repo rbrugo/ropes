@@ -42,6 +42,10 @@ struct settings
     ph::duration dt;
     ph::framerate fps;
 
+    std::string x_formula;
+    std::string y_formula;
+    bool equalize_distance;
+
     force_enabled_t enabled;
 
     settings(
@@ -55,7 +59,10 @@ struct settings
         ph::linear_density linear_density,
         ph::duration dt,
         ph::framerate framerate,
-        ph::duration duration
+        ph::duration duration,
+        std::string x_formula = "t",
+        std::string y_formula = "0",
+        bool equalize_distance = true
     ) :
         number_of_points{n_points},
         elastic_constant{k},
@@ -70,7 +77,10 @@ struct settings
         t0{0 * ph::s},
         t1{t0 + duration},
         dt{dt},
-        fps{framerate}
+        fps{framerate},
+        x_formula{std::move(x_formula)},
+        y_formula{std::move(y_formula)},
+        equalize_distance{equalize_distance}
     { }
 };
 
@@ -155,11 +165,9 @@ auto integrate(
  *
  * @param settings the settings from the CLI and UI.
  * @param f a function mapping [0,1] to a 2D vector.
- * @param equalize_distance if `true`, the points will be equally spaced
  */
 auto construct_rope(
-    sym::settings const & settings, std::function<ph::vector<>(double)> const & f,
-    bool equalize_distance = true
+    sym::settings const & settings, std::function<ph::vector<>(double)> const & f
 ) -> std::vector<ph::state>;
 
 /**
@@ -186,6 +194,20 @@ auto equidistant_points_along_function(
     std::function<ph::vector<>(double)> const & fn, ssize_t n_points,
     std::optional<double> total_len = std::nullopt
 ) -> std::vector<math::vector<double, 2>>;
+
+/**
+ * @brief Resets the rope to a default state
+ *
+ * @param settings the settings from the CLI and UI
+ * @param rope a reference to the rope
+ * @param metadata a reference to the metadata
+ * @param t a reference to the current time
+ */
+void reset(
+    sym::settings & settings,
+    std::vector<ph::state> & rope, std::vector<ph::metadata> & metadata,
+    ph::duration & t
+);
 
 } // namespace sym
 
