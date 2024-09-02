@@ -116,16 +116,16 @@ int main(int argc, char * argv[]) try  // NOLINT
     auto steps = 0;
 
     // Dragging section data
-    struct mouse : math::vector<double, 2> {
-        [[nodiscard]] auto x() -> double & { return (*this)[0]; }
-        [[nodiscard]] auto y() -> double & { return (*this)[1]; }
-        bool clicking = false;
-    } mouse;
-    struct dragged_info {
-        ssize_t index;
-        bool was_fixed;
-    };
-    auto dragged = std::optional<dragged_info>{std::nullopt};
+    // struct mouse : math::vector<double, 2> {
+    //     [[nodiscard]] auto x() -> double & { return (*this)[0]; }
+    //     [[nodiscard]] auto y() -> double & { return (*this)[1]; }
+    //     bool clicking = false;
+    // } mouse;
+    // struct dragged_info {
+    //     ssize_t index;
+    //     bool was_fixed;
+    // };
+    // auto dragged = std::optional<dragged_info>{std::nullopt};
     auto manually_fixed = std::vector<ssize_t>{};  manually_fixed.reserve(5);
 
     auto const ΔT = 1. / settings.fps;
