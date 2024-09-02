@@ -139,14 +139,14 @@ int main(int argc, char * argv[]) try  // NOLINT
         // poll events
         while (SDL_PollEvent(&event) != 0) {
             ImGui_ImplSDL2_ProcessEvent(&event);
-            if (ImGui::GetIO().WantCaptureKeyboard) {
-                break;
-            }
             switch (event.type) {
             case SDL_QUIT:
                 quit = true;
                 break;
             case SDL_KEYDOWN:
+                if (ImGui::GetIO().WantCaptureKeyboard) {
+                    continue;
+                }
                 switch (event.key.keysym.sym) {
                 case SDLK_q:
                     quit = true;
@@ -157,6 +157,12 @@ int main(int argc, char * argv[]) try  // NOLINT
                 case SDLK_s:
                     pause = true;
                     step = true;
+                    break;
+                case SDLK_r:
+                    sym::reset(settings, rope, metadata, t);
+                    if ((event.key.keysym.mod & KMOD_SHIFT) != 0) {
+                        pause = true;
+                    }
                     break;
                 case SDLK_PLUS:
                 case SDLK_KP_PLUS:
@@ -181,6 +187,9 @@ int main(int argc, char * argv[]) try  // NOLINT
                 }
                 break;
             case SDL_MOUSEWHEEL:
+                if (ImGui::GetIO().WantCaptureMouse) {
+                    continue;
+                }
                 if (event.wheel.y > 0) {
                     config.scale += 0.5;
                 } else if (event.wheel.y < 0) {
@@ -319,23 +328,26 @@ int main(int argc, char * argv[]) try  // NOLINT
         update_screen();
 #endif
 
-        auto const now = std::chrono::steady_clock::now();
-        if (now >= end and (not pause or step)) {
-            end = now + to_chrono_duration(ΔT);;
-            step = false;
-            // update the simulation
-            auto Δt = ph::duration::zero();
-            steps = 0;
-            for (; Δt < ΔT; Δt += δt) {
-                auto res = sym::integrate(settings, rope, t + Δt, δt, get_metadata);
-                rope = std::move(res.state);
-                metadata = std::move(res.metadata);
-                ++steps;
+        if (not pause or step) {
+            auto const now = std::chrono::system_clock::now();
+            while (now - begin >= to_chrono_duration(ΔT)) {
+                begin += to_chrono_duration(ΔT);
+                step = false;
+                // update the simulation
+                auto Δt = ph::duration::zero();
+                steps = 0;
+                for (; Δt < ΔT; Δt += δt) {
+                    auto res = sym::integrate(settings, rope, t + Δt, δt, get_metadata);
+                    rope = std::move(res.state);
+                    metadata = std::move(res.metadata);
+                    ++steps;
+                }
+                t += Δt;
             }
-            t += Δt;
         }
 
 #ifndef NO_GRAPHICS
+        // TODO: does it still make sense to set fps?
         // wait
         // if (settings.fps < 60 * ph::Hz) {
         //     std::this_thread::sleep_until(end);
