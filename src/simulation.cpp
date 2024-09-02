@@ -159,18 +159,29 @@ auto acceleration(
                        : zero;
     auto const gravitational = enabled.gravity ? gravitational_force(current) : zero;
 
-    auto const damping =
-        (enabled.internal_damping ? internal_damping(current, prev) + internal_damping(current, next) : zero) +
-        (enabled.external_damping ? external_damping(current, prev) + external_damping(current, next) : zero);
+    auto const int_damping = enabled.internal_damping
+                           ? internal_damping(current, prev) + internal_damping(current, next)
+                           : zero;
+    auto const ext_damping = enabled.external_damping
+                           ? external_damping(current, prev) + external_damping(current, next)
+                           : zero;
+    auto const damping = int_damping + ext_damping;
 
     auto const bending_stiffness = enabled.flexural_rigidity
                                  ? bending_stiffness_force(prev, current, next)
                                  : zero;
-
+    auto const total_force = elastic + gravitational + damping + bending_stiffness;
     if (metadata != nullptr) {
-        metadata->f = bending_stiffness;
+        *metadata = {
+            .elastic = elastic,
+            .gravitational = gravitational,
+            .internal_damping = int_damping,
+            .external_damping = ext_damping,
+            .bending_stiffness = bending_stiffness,
+            .total = total_force
+        };
     }
-    return (elastic + gravitational + damping + bending_stiffness) * (1. / current.m);
+    return total_force * (1. / current.m);
 }
 
 auto integrate(

@@ -276,17 +276,21 @@ int main(int argc, char * argv[]) try  // NOLINT
 #ifndef NO_GRAPHICS
         SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
 
+        // TODO:
+        // - `gfx::render` must render rope and metadata
+        // - the metadata to render must be selectable from UI (eventually strided)
+        // - make a table with metadata relative to a bunch of selected points
         auto const points = rope | std::views::transform(&ph::state::x);
         gfx::render(points, settings.segment_length, config);
 
         if (get_metadata) {
             auto as_numbers = [](auto const & meta) {
-                return meta.f.transform([](auto const & f) { return f.numerical_value_in(ph::N); });
+                return meta.total.transform([](auto const & f) { return f.numerical_value_in(ph::N); });
             };
             auto sizes = metadata
                        | std::views::transform(as_numbers)
                        | std::views::transform([](auto x) { return math::vector{x[0], -x[1]}; });
-            auto pairs = std::views::zip(points, sizes);
+            auto pairs = std::views::zip(points, sizes) | std::views::stride(5);
             for (auto const & [from, size] : pairs) {
                 gfx::draw_arrow(from, size, config);
             }

@@ -55,7 +55,12 @@ using framerate = quantity<Hz>;
 
 struct metadata
 {
-    ph::force f;
+    ph::force elastic;
+    ph::force gravitational;
+    ph::force internal_damping;
+    ph::force external_damping;
+    ph::force bending_stiffness;
+    ph::force total;
 };
 
 struct state
