@@ -130,7 +130,10 @@ int main(int argc, char * argv[]) try  // NOLINT
 
     auto const ΔT = 1. / settings.fps;
     auto const δt = settings.dt;
-    auto end = std::chrono::steady_clock::now() + to_chrono_duration(ΔT);
+
+    using clock_t = std::chrono::system_clock;
+    using duration_t = decltype(to_chrono_duration(ΔT));
+    auto begin = std::chrono::time_point<clock_t, duration_t>(clock_t::now());
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
 #ifndef NO_GRAPHICS
         // clear the screen
