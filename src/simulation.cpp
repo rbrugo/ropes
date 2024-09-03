@@ -123,8 +123,9 @@ auto acceleration(
     // t = (Δx1 + Δx2) / |Δx1 + Δx2|
     // dir = (t[1], -t[0])
     // F = |F| * dir
-    // FIXME: does not work correctly - it tries to curl the rope
-    auto bending_stiffness_force = [E,r](ph::state const * const prv, ph::state const & curr, ph::state const * const nxt) -> ph::force {
+    auto bending_stiffness_force = [E,r](
+        ph::state const * const prv, ph::state const & curr, ph::state const * const nxt
+    ) -> ph::force {
         if (not nxt or not prv) {
             return zero;
         }
@@ -133,7 +134,9 @@ auto acceleration(
             return zero;
         }
         auto const κ = 1. / *radius;
-        auto const I = std::numbers::pi * r * r * r * r / 4;  // second moment of area
+        auto const r2 = r * r;
+        auto const r4 = r2 * r2;
+        auto const I = std::numbers::pi * r4 / 4;  // second moment of area
         auto const bending_moment = E * I * κ;
 
         auto const Δx1 = prv->x - curr.x;
