@@ -68,11 +68,11 @@ protected:
 template <typename T, std::size_t N>
 struct vector : std::array<T, N>, public arithmetic
 {
-    constexpr vector() : vector::array{} {}
+    constexpr vector() = default;
 
     template <typename... Ts>
         requires ((std::constructible_from<T, Ts> && ...) and sizeof...(Ts) == N)
-    constexpr vector(Ts && ...ts) : std::array<T, N>{{static_cast<T>(ts)...}} {}
+    constexpr vector(Ts && ...ts) noexcept : vector::array{{static_cast<T>(ts)...}} {}
 
     template <typename T2>
     constexpr
@@ -111,7 +111,8 @@ struct vector : std::array<T, N>, public arithmetic
     template <typename Scalar>
         requires std::constructible_from<T, std::remove_cvref_t<decltype(std::declval<T>() * std::declval<Scalar>())>>
     constexpr
-    auto operator*=(Scalar const & s) noexcept -> decltype(auto) {
+    auto operator*=(Scalar const & s) noexcept -> decltype(auto)
+    {
         std::ranges::transform(*this, this->begin(), [&s](auto const & n) { return n * s; });
         return *this;
     }
@@ -119,10 +120,11 @@ struct vector : std::array<T, N>, public arithmetic
     template <typename Scalar>
         requires requires(vector const & v, Scalar const & s) { { v[0] * s }; }
     constexpr
-    auto operator*(Scalar const & s) const noexcept {
+    auto operator*(Scalar const & s) const noexcept
+    {
         using scalar = std::remove_cvref_t<decltype((*this)[0] * s)>;
         auto result = math::vector<scalar, N>{};
-        std::ranges::transform(*this, result.begin(), [s](auto && elem) { return elem * s; });
+        std::ranges::transform(*this, result.begin(), [s](auto const & elem) { return elem * s; });
         return result;
     }
 
@@ -148,7 +150,8 @@ struct vector : std::array<T, N>, public arithmetic
         requires (std::floating_point<Scalar> or std::integral<Scalar>)
              and std::constructible_from<T, std::remove_cvref_t<decltype(std::declval<T>() / std::declval<Scalar>())>>
     constexpr
-    auto operator/=(Scalar const & s) noexcept -> decltype(auto) {
+    auto operator/=(Scalar const & s) noexcept -> decltype(auto)
+    {
         std::ranges::transform(*this, this->begin(), [&s](auto const & n) { return n / s; });
         return *this;
     }
@@ -164,8 +167,8 @@ struct vector : std::array<T, N>, public arithmetic
 
     constexpr auto operator-() const noexcept { return auto{*this} *= -1; }
 
-    static constexpr auto zero() noexcept { return vector{}; }
-    static constexpr auto one() noexcept {
+    [[nodiscard]] static constexpr auto zero() noexcept { return vector{}; }
+    [[nodiscard]] static constexpr auto one() noexcept {
         static constexpr auto unit = [] {
             if constexpr (requires { { T::one() }; }) {
                 return T::one();
@@ -178,10 +181,11 @@ struct vector : std::array<T, N>, public arithmetic
         }(std::make_index_sequence<N>{});
     }
 
-    constexpr bool operator==(vector const &) const = default;
+    constexpr bool operator==(vector const &) const noexcept = default;
 
     template <typename T2>
         requires std::constructible_from<T2, T>
+    [[nodiscard]]
     constexpr operator vector<T2, N>() const noexcept(std::is_nothrow_constructible_v<T2, T>)
     {
         return [this]<size_t ...I>(std::index_sequence<I...>) {
@@ -191,6 +195,7 @@ struct vector : std::array<T, N>, public arithmetic
 
     template <typename Fn>
         requires std::invocable<Fn, T>
+    [[nodiscard]]
     constexpr auto transform(Fn && fn) const
         -> vector<std::invoke_result_t<Fn, T>, N>
     {
@@ -289,7 +294,7 @@ constexpr inline struct sine_fn {
 constexpr inline struct hadamard_product_fn {
     template <typename T, typename U = T, std::size_t N>
     [[nodiscard]] static constexpr
-    auto operator()(vector<T, N> const & v1, vector<T, N> const & v2) noexcept
+    auto operator()(vector<T, N> const & v1, vector<U, N> const & v2) noexcept
     {
         using R = decltype(std::declval<T const &>() * std::declval<U const &>());
         return [&v1, &v2]<size_t ...I>(std::index_sequence<I...>) {
@@ -301,7 +306,7 @@ constexpr inline struct hadamard_product_fn {
 constexpr inline struct hadamard_division_fn {
     template <typename T, typename U = T, std::size_t N>
     [[nodiscard]] static constexpr
-    auto operator()(vector<T, N> const & v1, vector<T, N> const & v2) noexcept
+    auto operator()(vector<T, N> const & v1, vector<U, N> const & v2) noexcept
     {
         using R = decltype(std::declval<T const &>() / std::declval<U const &>());
         return [&v1, &v2]<size_t ...I>(std::index_sequence<I...>) {
@@ -321,7 +326,6 @@ constexpr inline struct hadamard_inverse_fn {
         }(std::make_index_sequence<N>{});
     }
 } hadamard_inverse;
-
 
 }  // namespace math
 
