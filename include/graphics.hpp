@@ -188,7 +188,11 @@ void tree_node(char const * title, bool & enabled, Fn && fn) {
 
 struct forces_ui_fn {
     sym::settings * settings;
-    explicit forces_ui_fn(sym::settings & settings) : settings{std::addressof(settings)} {};
+    sym::settings const * initial_settings;
+    explicit forces_ui_fn(sym::settings & settings, sym::settings const & initial) :
+        settings{std::addressof(settings)},
+        initial_settings{std::addressof(initial)}
+    {};
     void operator()() const noexcept;
 };
 

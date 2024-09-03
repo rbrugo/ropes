@@ -28,9 +28,9 @@ struct SDL_Event {};
 
 #include <expression.hpp>
 
-auto forces_ui(sym::settings & settings) -> gfx::forces_ui_fn
+auto forces_ui(sym::settings & settings, sym::settings const & initial_settings) -> gfx::forces_ui_fn
 {
-    return gfx::forces_ui_fn{settings};
+    return gfx::forces_ui_fn{settings, initial_settings};
 }
 
 auto rope_editor_ui(
@@ -67,7 +67,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 {
     auto options = structopt::app("ropes").parse<::options>(argc, argv);
 
-    auto settings = sym::settings{
+    auto const initial_settings = sym::settings{
         options.n.value(),
         options.k.value() * ph::N / ph::m,
         options.E.value() * ph::GPa,
@@ -82,6 +82,8 @@ int main(int argc, char * argv[]) try  // NOLINT
         *options.x_formula,
         *options.y_formula,
     };
+    auto settings = initial_settings;
+
     constexpr auto get_metadata = true;
 
     dump_settings(settings);
@@ -319,7 +321,7 @@ int main(int argc, char * argv[]) try  // NOLINT
 
 
         gfx::draw_window("Data", data_ui(settings, rope, t, steps));
-        gfx::draw_window("Forces", forces_ui(settings));
+        gfx::draw_window("Forces", forces_ui(settings, initial_settings));
         gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t));
 
         // ImGui::ShowDemoWindow();

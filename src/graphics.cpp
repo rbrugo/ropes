@@ -125,7 +125,7 @@ void forces_ui_fn::operator()() const noexcept
             ImGui::SliderScalar("Elastic constant (k)", ImGuiDataType_Double, REF(elastic_constant, ph::N / ph::m), &min, &max, "%.2lf N/m")
         );
         if (ImGui::Button("Reset")) {
-            settings->elastic_constant = sym::constants::k; // FIXME: real value is set on startup
+            settings->elastic_constant = initial_settings->elastic_constant;
         }
     });
     gfx::tree_node("Gravity", enable.gravity, [] {});
@@ -138,7 +138,7 @@ void forces_ui_fn::operator()() const noexcept
             ImGui::SliderScalar("External damping (b)", ImGuiDataType_Double, REF(external_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
         );
         if (ImGui::Button("Reset")) {
-            settings->external_damping = sym::constants::b; // FIXME: real value is set on startup
+            settings->external_damping = initial_settings->external_damping;
         }
     });
     gfx::tree_node("Internal damping", enable.internal_damping, [&] {
@@ -150,7 +150,7 @@ void forces_ui_fn::operator()() const noexcept
             ImGui::SliderScalar("Internal damping (c)", ImGuiDataType_Double, REF(internal_damping, ph::N * ph::s / ph::m), &min, &max, "%.2lf N·s/m")
         );
         if (ImGui::Button("Reset")) {
-            settings->internal_damping = sym::constants::c; // FIXME: real value is set on startup
+            settings->internal_damping = initial_settings->internal_damping;
         }
     });
     gfx::tree_node("Flexural rigidity", enable.flexural_rigidity, [&] {
@@ -170,7 +170,7 @@ void forces_ui_fn::operator()() const noexcept
         ImGui::SameLine();
         ImGui::SetCursorPosX(windowWidth - buttonWidth - 2 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::Button("Reset")) {
-            settings->young_modulus = sym::constants::E; // FIXME: real value is set on startup
+            settings->young_modulus = initial_settings->young_modulus;
         }
         ImGui::SetNextItemWidth(100);
         MAYBE_ENABLED(
@@ -180,7 +180,7 @@ void forces_ui_fn::operator()() const noexcept
         ImGui::SameLine();
         ImGui::SetCursorPosX(windowWidth - buttonWidth - 2 * ImGui::GetStyle().ItemSpacing.x);
         if (ImGui::Button("Reset")) {
-            settings->diameter = sym::constants::diameter; // FIXME: real value is set on startup
+            settings->diameter = initial_settings->diameter;
         }
     });
 
