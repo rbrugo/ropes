@@ -109,7 +109,7 @@ int main(int argc, char * argv[]) try  // NOLINT
     auto rope = sym::construct_rope(settings, fn);
     auto metadata = std::vector<ph::metadata>{};
 
-    auto [quit, pause, step] = std::array{false, *options.pause, false};
+    auto [quit, step] = std::array{false, false};
 
     auto config = gfx::screen_config {
         .screen_size = {0, 0},
@@ -136,7 +136,9 @@ int main(int argc, char * argv[]) try  // NOLINT
 
     using clock_t = std::chrono::system_clock;
     using duration_t = decltype(to_chrono_duration(ΔT));
-    auto begin = std::chrono::time_point<clock_t, duration_t>(clock_t::now());
+    using time_point_t = std::chrono::time_point<clock_t, duration_t>;
+    auto begin = time_point_t(clock_t::now());
+    auto pause = *options.pause ? std::optional<time_point_t>{begin} : std::nullopt;
     for (auto [t, event] = std::tuple{settings.t0, SDL_Event{}}; t < settings.t1 and not quit;) {
 #ifndef NO_GRAPHICS
         // clear the screen
@@ -158,16 +160,27 @@ int main(int argc, char * argv[]) try  // NOLINT
                     quit = true;
                     break;
                 case SDLK_p:
-                    pause = ! pause;
+                    if (not pause) {
+                        pause = clock_t::now();
+                    } else {
+                        auto diff = *pause - begin;
+                        begin = clock_t::now() - diff;
+                        pause = std::nullopt;
+                    }
+                    step = false;
                     break;
                 case SDLK_s:
-                    pause = true;
+                    if (pause) {
+                        auto diff = *pause - begin;
+                        begin = clock_t::now() - diff;
+                    }
+                    pause = clock_t::now();
                     step = true;
                     break;
                 case SDLK_r:
                     sym::reset(settings, rope, metadata, t);
-                    if ((event.key.keysym.mod & KMOD_SHIFT) != 0) {
-                        pause = true;
+                    if ((event.key.keysym.mod & KMOD_SHIFT) != 0 and not pause) {
+                        pause = clock_t::now();
                     }
                     break;
                 case SDLK_PLUS:
