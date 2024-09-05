@@ -109,12 +109,15 @@ int main(int argc, char * argv[]) try  // NOLINT
     auto rope = sym::construct_rope(settings, fn);
     auto metadata = std::vector<ph::metadata>{};
 
+    /** UI stuff **/
+    auto arrows_ui = gfx::arrows_ui{};
+
     auto [quit, step] = std::array{false, false};
 
     auto config = gfx::screen_config {
         .screen_size = {0, 0},
         .scale = 10.0,
-        .offset = {0, -480}  // 400, 15
+        .offset = {0, -480}
     };
     auto steps = 0;
 
@@ -304,25 +307,10 @@ int main(int argc, char * argv[]) try  // NOLINT
 #ifndef NO_GRAPHICS
         SDL_GetWindowSize(window.get(), &config.screen_size[0], &config.screen_size[1]);  // NOLINT
 
-        // TODO:
-        // - `gfx::render` must render rope and metadata
-        // - the metadata to render must be selectable from UI (eventually strided)
-        // - make a table with metadata relative to a bunch of selected points
+        // TODO: make a table with metadata relative to a bunch of selected points
         auto const points = rope | std::views::transform(&ph::state::x);
         gfx::render(points, settings.segment_length, config);
-
-        if (get_metadata) {
-            auto as_numbers = [](auto const & meta) {
-                return meta.total.transform([](auto const & f) { return f.numerical_value_in(ph::N); });
-            };
-            auto sizes = metadata
-                       | std::views::transform(as_numbers)
-                       | std::views::transform([](auto x) { return math::vector{x[0], -x[1]}; });
-            auto pairs = std::views::zip(points, sizes) | std::views::stride(5);
-            for (auto const & [from, size] : pairs) {
-                gfx::draw_arrow(from, size, config);
-            }
-        }
+        gfx::render(points, metadata, arrows_ui, config);
 
 
         /** IMGUI **/
@@ -336,6 +324,7 @@ int main(int argc, char * argv[]) try  // NOLINT
         gfx::draw_window("Data", data_ui(settings, rope, t, steps));
         gfx::draw_window("Forces", forces_ui(settings, initial_settings));
         gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t));
+        gfx::draw_window("Graphics", arrows_ui);
 
         // ImGui::ShowDemoWindow();
 

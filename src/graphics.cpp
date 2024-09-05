@@ -1,4 +1,3 @@
-// NOLINTBEGIN(concurrency-mt-unsafe)
 /**
  * @author      : rbrugo (brugo.riccardo@gmail.com)
  * @file        : graphics
@@ -24,6 +23,7 @@
 #include <simulation.hpp>
 #include <expression.hpp>
 
+// NOLINTBEGIN(concurrency-mt-unsafe)
 namespace gfx
 {
 
@@ -372,5 +372,88 @@ void rope_editor_fn::operator()() noexcept
         update = false;
     }
 }
+
+#define IN_N(MEMBER) \
+    [](ph::metadata const & md) { return md.MEMBER.transform(ph::numerical_value_in(ph::N)); }
+
+arrows_ui::arrows_ui() :
+    arrows{
+        { "gravity", IN_N(gravitational), 1.f, math::vector{255, 127, 255} },
+        { "elastic", IN_N(elastic), 1.f, math::vector{255, 255, 127} },
+        { "internal damping", IN_N(internal_damping), 1.f, math::vector{127, 127, 255} },
+        { "external damping", IN_N(external_damping), 1.f, math::vector{127, 255, 127} },
+        { "bending stiffness", IN_N(bending_stiffness), 1.f, math::vector{127, 255, 255} },
+        { "total", IN_N(total), 1.f, math::vector{255, 127, 127} },
+    }
+{}
+#undef IN_N
+
+void arrows_ui::operator()() noexcept
+{
+    constexpr auto color_edit_flags = ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel;
+    static auto stride_selected = static_cast<int>(stride.index());
+    // TODO: do I want to re-select every time? This way I can cache the stride float value
+    static auto once_every_n = int32_t{10};
+    static auto once_every_fraction = float{0.1};
+    constexpr auto steps = std::array{ 1, 10 };
+    // Option 1: draw every point
+    bool changed = false;
+    changed = ImGui::RadioButton("Draw all", &stride_selected, 0) or changed;
+    // Option 2: draw once every N point
+    changed = ImGui::RadioButton("Draw once every##1", &stride_selected, 1) or changed;
+    ImGui::SameLine();
+    if (ImGui::InputScalar("points", ImGuiDataType_S32, &once_every_n, &steps[0], &steps[1], "%u")) {
+        changed = true;
+        stride_selected = 1;
+    }
+    // Option 3: draw once every X%
+    changed = ImGui::RadioButton("Draw once every##2", &stride_selected, 2) or changed;
+    ImGui::SameLine();
+    if (ImGui::SliderFloat(
+        "fraction", &once_every_fraction, 0.01f, 1.f, "%.3f", ImGuiSliderFlags_Logarithmic
+    )) {
+        changed = true;
+        stride_selected = 2;
+    }
+
+    if (changed) {
+        switch (stride_selected) {
+        case 0:
+            stride = std::monostate{};
+            break;
+        case 1:
+            once_every_n = std::max(once_every_n, 1);
+            stride.emplace<1>(once_every_n);
+            break;
+        case 2:
+            once_every_fraction = std::max(once_every_fraction, 0.001f);
+            stride.emplace<2>(once_every_fraction);
+            break;
+        default:
+            std::unreachable();
+        }
+    }
+    auto single_arrow_row = [](arrow_settings & s) {
+        constexpr auto min = 0.01f;
+        constexpr auto max = 100.f;
+        ImGui::Checkbox(fmt::format("##CheckBoxFor{}", s.name).c_str(), &s.enabled);
+        ImGui::SameLine();
+        ImGui::ColorEdit3(fmt::format("##ColorFor{}", s.name).c_str(), s.color.data(), color_edit_flags);
+        ImGui::SameLine();
+        ImGui::TextUnformatted(s.name.c_str());
+        ImGui::SameLine();
+
+        auto available_width = ImGui::GetContentRegionAvail().x;
+        auto max_width = ImGui::GetWindowSize().x - 210;
+        // auto item_width = std::min(available_width, max_width);
+        ImGui::SameLine(200);
+        ImGui::PushItemWidth(max_width);
+        ImGui::SliderScalar(fmt::format("##SliderFor{}", s.name).c_str(), ImGuiDataType_Float, &s.scale, &min, &max, "scale: %.2lf");
+    };
+    for (auto & arrow : arrows) {
+        single_arrow_row(arrow);
+    }
+}
+
 }  // namespace gfx
 // NOLINTEND(concurrency-mt-unsafe)

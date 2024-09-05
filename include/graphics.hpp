@@ -43,6 +43,91 @@ struct screen_config
     math::vector<double, 2> offset;
 };
 
+struct arrow_settings {
+    std::string name;
+    std::function<ph::vector<>(ph::metadata const &)> value;
+    float scale;
+    math::vector<float, 3> color;
+    bool enabled;
+
+    template <typename Fn, typename T>
+    arrow_settings(
+        std::string name, Fn && fn_to_value, float scale, math::vector<T, 3> color, bool enabled = false
+    ) :
+        name{std::move(name)},
+        value{std::forward<Fn>(fn_to_value)},
+        scale{scale},
+        color{[&] {
+            if constexpr (std::is_integral_v<T>) {
+                return math::vector_cast<float>(color) / 255;
+            } else {
+                return color;
+            }
+        }()},
+        enabled{enabled}
+    {}
+
+    template <typename Fn, typename T>
+    arrow_settings(
+        std::string name, Fn && fn_to_value, math::vector<T, 3> color, bool enabled = false
+    ) : arrow_settings{std::move(name), std::forward<Fn>(fn_to_value), 1.f, std::move(color), enabled}
+    {}
+};
+
+struct forces_ui_fn {
+    sym::settings * settings;
+    sym::settings const * initial_settings;
+    explicit forces_ui_fn(sym::settings & settings, sym::settings const & initial) :
+        settings{std::addressof(settings)},
+        initial_settings{std::addressof(initial)}
+    {};
+    void operator()() const noexcept;
+};
+
+struct data_ui_fn {
+    sym::settings const * settings;
+    std::vector<ph::state> const * rope;
+    ph::time t;
+    int steps;
+
+    explicit data_ui_fn(
+        sym::settings const & s,
+        std::vector<ph::state> const & rope,
+        ph::time t,
+        int steps
+    ) : settings{std::addressof(s)}, rope{std::addressof(rope)}, t{t}, steps{steps}
+    {}
+    void operator()() const noexcept;
+};
+
+struct rope_editor_fn {
+    sym::settings * settings;
+    std::vector<ph::state> * rope;
+    std::vector<ph::metadata> * metadata;
+    ph::duration * t;
+
+    explicit rope_editor_fn(
+        sym::settings & settings, auto & rope, auto & metadata, ph::duration & time
+    ) :
+        settings{std::addressof(settings)},
+        rope{std::addressof(rope)},
+        metadata{std::addressof(metadata)},
+        t{std::addressof(time)}
+    {}
+
+    void operator()() noexcept;
+};
+
+struct arrows_ui {
+    std::variant<std::monostate, uint32_t, float> stride = uint32_t{10};
+    std::vector<arrow_settings> arrows;
+
+    explicit arrows_ui();
+
+    void operator()() noexcept;
+};
+
+
 [[nodiscard]]
 auto setup_SDL(int screen_width, int screen_height) -> SDL_stuff;
 
@@ -71,7 +156,6 @@ auto map_from_screen(gfx::screen_config const & config) noexcept {
 inline
 void vertex(std::array<double, 2> const & pt) noexcept { return glVertex2d(pt[0], pt[1]); }
 
-
 inline
 void draw_arrow(
     ph::position const & from_,
@@ -82,13 +166,18 @@ void draw_arrow(
 {
     constexpr auto head_width = 15.f;
     constexpr auto head_height = 17.f;
-    auto const from = map_to_screen(config)(from_);
+    auto const remap = map_to_screen(config);
+    auto const from = remap(from_);
     auto const [w, h] = static_cast<math::vector<float, 2>>(config.screen_size);
     auto const head_w = head_width / w;
     auto const head_h = head_height / h;
 
-    auto const to = from + size;
-    auto const direction = math::unit(size);
+    if (size == math::vector{0., 0.}) {
+        return;
+    }
+
+    auto const to = remap(from_ + size * ph::m);
+    auto const direction = math::unit(to - from);
     auto const ortho = math::vector{-direction[1], direction[0]};
 
     auto const arrow_head_base = to - direction * head_h;
@@ -107,6 +196,17 @@ void draw_arrow(
     vertex(arrow_head_pt1);
     vertex(arrow_head_pt2);
     glEnd();
+}
+
+inline
+void draw_arrow(
+    ph::position const & from_,
+    math::vector<double, 2> const & size,
+    gfx::screen_config const & config,
+    math::vector<float, 3> color
+) noexcept
+{
+    draw_arrow(from_, size, config, math::vector_cast<int>(color * 255));
 }
 
 
@@ -129,7 +229,15 @@ void draw_square(std::array<double, 2> const & p, math::vector<int, 2> screen_si
     glEnd();
 }
 
+/**
+ * @brief Draws the rope into the canvas
+ *
+ * @param rope the vector of positions of the rope points
+ * @param l0 the rest length of the rope, used to determinate the color
+ * @param config screen config
+ */
 template <std::ranges::forward_range Rope>
+    requires std::same_as<std::ranges::range_value_t<Rope>, ph::position>
 void render(Rope const & rope, ph::length l0, screen_config const & config)
 {
     auto const points = rope | std::views::transform(map_to_screen(config));
@@ -165,6 +273,57 @@ void render(Rope const & rope, ph::length l0, screen_config const & config)
     }
 }
 
+/**
+ * @brief Renders the metadata (atm forces) using the settings provided via UI
+ *
+ * @param rope the vector of the positions of the rope points
+ * @param metadata the metadata objects
+ * @param arrows_data the draw settings, from the UI
+ * @param config screen config
+ */
+template <std::ranges::forward_range Rope>
+    requires std::same_as<std::ranges::range_value_t<Rope>, ph::position>
+void render(
+    Rope const & rope,
+    std::span<ph::metadata const> metadata,
+    arrows_ui const & arrows_settings,
+    screen_config const & config
+) {
+    if (metadata.empty()) {
+        return;
+    }
+    auto const stride = std::visit([s=metadata.size()]<typename T>(T const & value) -> int32_t {
+        if constexpr (std::same_as<T, float>) {
+            return std::clamp<int32_t>(s * value, 1, s);
+        } else if constexpr (std::is_integral_v<T>) {
+            return static_cast<int32_t>(value);
+        } else {
+            return 1;
+        }
+    }, arrows_settings.stride);
+
+    auto const points = rope
+                      | std::views::stride(stride)
+                      ;
+    auto strided_metadata = metadata | std::views::stride(stride);
+    auto settings = arrows_settings.arrows
+                  | std::views::filter(&arrow_settings::enabled)
+                  | std::views::transform([](auto & s) { return std::addressof(s); })
+                  | std::ranges::to<std::vector>();
+    if (settings.empty()) {
+        return;
+    }
+
+    auto pairs = std::views::cartesian_product(std::views::zip(points, strided_metadata), settings);
+
+    for (auto const & [data, settings] : pairs) {
+        auto const & [from, arrow_data] = data;
+        auto const & [_1, fn, scale, color, _2] = *settings;
+        auto const size = fn(arrow_data) * scale;
+        gfx::draw_arrow(from, size, config, color);
+    }
+}
+
 template <typename Fn, typename ...Ts>
 void draw_window(char const * const title, Fn && fn, Ts ...size) {
     if constexpr (sizeof...(size) == 2) {
@@ -185,53 +344,6 @@ void tree_node(char const * title, bool & enabled, Fn && fn) {
         std::forward<Fn>(fn)();
     }
 }
-
-struct forces_ui_fn {
-    sym::settings * settings;
-    sym::settings const * initial_settings;
-    explicit forces_ui_fn(sym::settings & settings, sym::settings const & initial) :
-        settings{std::addressof(settings)},
-        initial_settings{std::addressof(initial)}
-    {};
-    void operator()() const noexcept;
-};
-
-struct data_ui_fn {
-    sym::settings const * settings;
-    std::vector<ph::state> const * rope;
-    ph::time t;
-    int steps;
-
-    explicit data_ui_fn(
-        sym::settings const & s,
-        std::vector<ph::state> const & rope,
-        ph::time t,
-        int steps
-    ) : settings{std::addressof(s)}, rope{std::addressof(rope)}, t{t}, steps{steps}
-    {}
-    void operator()() const noexcept;
-};
-
-struct rope_editor_fn {
-    sym::settings * settings;
-    std::vector<ph::state> * rope;
-    std::vector<ph::metadata> * metadata;
-    ph::duration * t;
-
-    explicit rope_editor_fn(
-        sym::settings & settings,
-        auto & rope,
-        auto & metadata,
-        ph::duration & time
-    ) :
-        settings{std::addressof(settings)},
-        rope{std::addressof(rope)},
-        metadata{std::addressof(metadata)},
-        t{std::addressof(time)}
-    {}
-
-    void operator()() noexcept;
-};
 
 } // namespace gfx
 
