@@ -82,6 +82,49 @@ struct simulation_data
     std::vector<ph::state> state;
     std::vector<ph::metadata> metadata;
 };
+
+constexpr inline struct numerical_value_in_fn
+{
+    template <typename Unit>
+    struct numerical_value_proxy
+    {
+        Unit unit;
+
+        explicit constexpr numerical_value_proxy(Unit unit) : unit{unit} {}
+
+        /**
+         * @brief Computes the numerical value of a quantity in the given unit
+         *
+         * @param x the quantity
+         * @return the numerical value of the quantity
+         */
+        template <typename T>
+        constexpr auto operator()(T && x) const noexcept
+        { return std::forward<T>(x).numerical_value_in(unit); }
+    };
+
+    /**
+     * @brief Generates a proxy callable which gets the numerical value
+     * of a quantity as in the required unit
+     *
+     * @param unit the units to get the numerical value in
+     * @return the proxy object
+     */
+    static constexpr auto operator()(auto unit) {
+        return numerical_value_proxy{unit};
+    }
+    /**
+     * @brief Computes the numerical value of a quantity in a given unit
+     *
+     * @param unit the unit to get the numerical value in
+     * @param value the quantity
+     * @return the numerical value of the quantity
+     */
+    static constexpr auto operator()(auto unit, auto && value) {
+        return numerical_value_proxy{unit}(std::forward<decltype(value)>(value));
+    }
+} numerical_value_in;
+
 }  // namespace ph
 
 template <> struct fmt::formatter<ph::state> : fmt::formatter<std::string_view>
