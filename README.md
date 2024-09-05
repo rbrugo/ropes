@@ -1,4 +1,4 @@
-# ropes
+# Ropes
 `Ropes` is a rope simulator.
 It currently takes into account the following forces, which can be disabled if desired:
 - the _gravitational force_ on the rope
@@ -10,6 +10,8 @@ It currently takes into account the following forces, which can be disabled if d
 
 Each force is modelled in a simple way and only accounts for the first neighbors, so it may not be
 the most accurate simulation in the world. Still pretty cool though, at least if you like ropes.
+
+![ropes demo](blob/ropes_example.png)
 
 ## How to compile `ropes`
 `ropes` requires the following dependencies:
@@ -65,7 +67,7 @@ with both of them.
 
 Example:
 ```bash
-ropes -n=200 --dt=0.001 --duration=25 --total-length=70 --pause --x=t --y="-t*t"
+ropes -n=200 --dt=0.001 --duration=25 --total-length=70 --pause -x=t -y="-t*t"
 ```
 
 ### User Interface
@@ -76,12 +78,15 @@ The User Interface (UI) is currently composed of four section:
   - `q`: exit the program
   - `p`: pause / unpause the simulation
   - `s`: pause the simulation and proceed of a single frame
+  - `r`: reset the simulation to `t = 0.0 s`
+  - `R`: reset and also pause
   - Directional arrows: move the camera around the canvas
   - `+`/`-`: change the zoom level of a factor `±0.1`
 - The **Data** window, where you can see some quantities in real time
 - The **Forces** window, where you can edit in real time all the constants of the simulation or
     even enable or disable forces
 - The **Rope** window, where you can define a new shape for the rope and restart the simulation
+- The **Graphics** window, where you can choose which forces to render, their number, scale and color
 
 ### Rope shape
 The initial shape of the rope can be defined via the CLI parameters `-x` and `-y` or using the input
