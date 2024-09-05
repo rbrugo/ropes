@@ -192,16 +192,16 @@ int main(int argc, char * argv[]) try  // NOLINT
                     config.scale -= 0.1;
                     break;
                 case SDLK_UP:
-                    config.offset[1] -= 5;
+                    config.offset[1] += 10;
                     break;
                 case SDLK_DOWN:
-                    config.offset[1] += 5;
+                    config.offset[1] -= 10;
                     break;
                 case SDLK_LEFT:
-                    config.offset[0] -= 5;
+                    config.offset[0] += 10;
                     break;
                 case SDLK_RIGHT:
-                    config.offset[0] += 5;
+                    config.offset[0] -= 10;
                     break;
                 }
                 break;
