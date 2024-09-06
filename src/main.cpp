@@ -132,7 +132,8 @@ int main(int argc, char * argv[]) try  // NOLINT
     //     bool was_fixed;
     // };
     // auto dragged = std::optional<dragged_info>{std::nullopt};
-    auto manually_fixed = std::vector<ssize_t>{};  manually_fixed.reserve(5);
+    auto dragged = std::optional<ph::vector<>>{};
+    // auto manually_fixed = std::vector<ssize_t>{};  manually_fixed.reserve(5);
 
     auto const ΔT = 1. / settings.fps;
     auto const δt = settings.dt;
@@ -219,13 +220,25 @@ int main(int argc, char * argv[]) try  // NOLINT
                 }
                 // player.hook.length = std::clamp<physics::scalar>(player.hook.length, 5, 400);
                 break;
-            // case SDL_MOUSEMOTION:
-            //     mouse.x() = event.motion.x;
-            //     mouse.y() = event.motion.y;
-            //     if (dragged.has_value()) {
-            //         rope[dragged->index].x = gfx::map_from_screen(config)(mouse);
-            //     }
-            //     break;
+            case SDL_MOUSEMOTION: {
+                if (dragged) {
+                    auto new_pos = math::vector{event.motion.x, event.motion.y};
+                    auto delta = new_pos - *dragged;
+                    config.offset += 2 * delta;
+                    *dragged = new_pos;
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN: {
+                if (not ImGui::GetIO().WantCaptureMouse) {
+                    dragged = {event.motion.x, event.motion.y}; 
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONUP: {
+                dragged = std::nullopt;
+                break;
+            }
             // case SDL_MOUSEBUTTONUP: {
             //     if (ImGui::GetIO().WantCaptureMouse) {
             //         break;
