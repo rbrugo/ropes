@@ -144,11 +144,11 @@ auto map_to_screen(gfx::screen_config const & config) noexcept {
 
 [[nodiscard]] constexpr
 auto map_from_screen(gfx::screen_config const & config) noexcept {
-    return [&config](math::vector<double, 2> const & x) -> ph::position {
+    return [&config]<typename Unit>(math::vector<double, 2> const & x, Unit unit = ph::m) {
         auto const [width, height] = config.screen_size;
         auto const expand = math::hadamard_product(x, { width, -height });
         auto const unmapped = (expand - config.offset) / config.scale;
-        auto const result = unmapped * ph::m;
+        auto const result = unmapped * unit;
         return result;
     };
 }
