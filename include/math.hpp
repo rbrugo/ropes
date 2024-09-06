@@ -204,6 +204,8 @@ struct vector : std::array<T, N>, public arithmetic
             return vector<R, N>{fn(std::get<I>(*this))...};
         }(std::make_index_sequence<N>{});
     }
+
+    static constexpr auto size() { return N; }
 };
 
 static_assert(vector<int, 2>::zero() == vector<int, 2>{0, 0});
@@ -215,6 +217,20 @@ template <typename ...Ts>
     requires (std::constructible_from<typename std::common_type<Ts...>::type, Ts> and ...)
 vector(Ts ...) -> vector<typename std::common_type<Ts...>::type, sizeof...(Ts)>;
 
+
+namespace traits
+{
+template <typename T>
+struct is_vector: std::false_type {};
+template <typename T, std::size_t N>
+struct is_vector<math::vector<T, N>> : std::true_type {};
+}  // namespace traits
+
+namespace concepts
+{
+template <typename T>
+concept vector = traits::is_vector<T>::value;
+}  // namespace concepts
 
 // product with a scalar
 template <typename T, std::size_t N, typename Scalar>
