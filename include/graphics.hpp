@@ -86,16 +86,20 @@ struct forces_ui_fn {
 
 struct data_ui_fn {
     sym::settings const * settings;
+    screen_config const * screen_cfg;
     std::vector<ph::state> const * rope;
     ph::time t;
     int steps;
 
     explicit data_ui_fn(
         sym::settings const & s,
+        gfx::screen_config const & sc,
         std::vector<ph::state> const & rope,
         ph::time t,
         int steps
-    ) : settings{std::addressof(s)}, rope{std::addressof(rope)}, t{t}, steps{steps}
+    ) :
+        settings{std::addressof(s)}, screen_cfg{std::addressof(sc)},
+        rope{std::addressof(rope)}, t{t}, steps{steps}
     {}
     void operator()() const noexcept;
 };

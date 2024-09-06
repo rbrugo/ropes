@@ -242,6 +242,8 @@ void data_ui_fn::operator()() const noexcept
         std::tuple{"Time", t},
         std::tuple{"Framerate", framerate},
         std::tuple{"Steps per frame", steps * mp_units::one},
+        // std::tuple{"Offset", screen_cfg->offset * mp_units::one},
+        // std::tuple{"Scale", screen_cfg->scale * mp_units::one},
         std::tuple{"Length", total_len},
         std::tuple{"Kinetic energy", kinetic_energy},
         std::tuple{"Potential energy", potential_energy},
@@ -254,12 +256,29 @@ void data_ui_fn::operator()() const noexcept
         ImGui::TableNextColumn();
         ImGui::Text("%s", name);  // NOLINT
         ImGui::TableNextColumn();
-        auto unit = value.unit;
-        auto amount = value.numerical_value_in(unit);
-        if constexpr (std::same_as<decltype(amount), int>) {
-            ImGui::Text("%+10d %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
+        auto [amount, unit] = [&] {
+            if constexpr (requires { { value.unit }; }) {
+                auto unit = value.unit;
+                return std::pair{ value.numerical_value_in(unit), unit };
+            } else if constexpr (requires { { value[0].unit }; }) {
+                auto unit = value[0].unit;
+                return std::pair{ value.transform(ph::numerical_value_in(unit)), unit };
+            } else {
+                return std::pair{ value, "" };
+            }
+        }();
+        using amount_t = std::remove_cvref_t<decltype(amount)>;
+        if constexpr (math::concepts::vector<amount_t>) {
+            static_assert(amount_t::size() == 2, "implemented for 2D vectors");
+            using amount_value_t = typename amount_t::value_type;
+            auto partial = fmt::format("{:.2f} {:.2f}", amount[0], amount[1]);
+            while (partial.size() < 10) { partial.push_back(' '); }
+            ImGui::Text("%s %s", partial.c_str(), fmt::to_string(unit).c_str());  // NOLINT(*-vararg)
+        }
+        else if constexpr (std::same_as<decltype(amount), int>) {
+            ImGui::Text("%+10d %s", amount, fmt::to_string(unit).c_str());  // NOLINT(*-vararg)
         } else {
-            ImGui::Text("%+10.3f %s", amount, fmt::format("{}", unit).c_str());  // NOLINT(*-vararg)
+            ImGui::Text("%+10.3f %s", amount, fmt::to_string(unit).c_str());  // NOLINT(*-vararg)
         }
     };
 

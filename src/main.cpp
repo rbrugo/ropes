@@ -39,10 +39,10 @@ auto rope_editor_ui(
     return gfx::rope_editor_fn{settings, rope, metadata, time};
 }
 
-auto data_ui(sym::settings const & settings, auto const & rope, ph::time t, int steps)
+auto data_ui(sym::settings const & settings, gfx::screen_config const & sc, auto const & rope, ph::time t, int steps)
     -> gfx::data_ui_fn
 {
-    return gfx::data_ui_fn{settings, rope, t, steps};
+    return gfx::data_ui_fn{settings, sc, rope, t, steps};
 }
 struct options
 {
@@ -334,7 +334,7 @@ int main(int argc, char * argv[]) try  // NOLINT
         ImGui::NewFrame();
 
 
-        gfx::draw_window("Data", data_ui(settings, rope, t, steps));
+        gfx::draw_window("Data", data_ui(settings, config, rope, t, steps));
         gfx::draw_window("Forces", forces_ui(settings, initial_settings));
         gfx::draw_window("Rope",  rope_editor_ui(settings, rope, metadata, t));
         gfx::draw_window("Graphics", arrows_ui);
