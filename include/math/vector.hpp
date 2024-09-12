@@ -132,6 +132,17 @@ struct vector : std::array<T, N>, public arithmetic
         return *this;
     }
 
+    template <typename Scalar>
+        requires requires(vector const & v, Scalar const & s) { { v[0] / s }; }
+    constexpr
+    auto operator/(Scalar const & s) const noexcept
+    {
+        using scalar = std::remove_cvref_t<decltype((*this)[0] / s)>;
+        auto result = math::vector<scalar, N>{};
+        std::ranges::transform(*this, result.begin(), [&s](auto const & elem) { return elem / s; });
+        return result;
+    }
+
 
     using arithmetic::operator+;
     using arithmetic::operator-;
