@@ -24,7 +24,7 @@ the most accurate simulation in the world. Still pretty cool though, at least if
 To compile the project, move into `ropes/` and run
 ```bash
 # install dependencies via conan
-conan install conanfile.txt --output-folder=build --build=missing --settings=build_type=Release
+conan install . --output-folder=build --build=missing --settings=build_type=Release
 # generate
 cmake --preset conan-release
 # and compile
