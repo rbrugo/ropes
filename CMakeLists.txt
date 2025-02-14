@@ -9,6 +9,18 @@
 #  cmake --preset conan-release
 #  cmake --build --preset conan-release
 
+# TO USE CONAN (using system-installed versions of OpenGL, SDL2 and SDL2_ttf):
+# conan install . \
+#     -o check_opengl_compatibility=no \
+#     -o opengl_source=system \
+#     -o sdl_source=system \
+#     --output-folder=build \
+#     --build=missing \
+#     --settings=build_type=Release
+#
+#  cmake --preset conan-release
+#  cmake --build --preset conan-release
+
 cmake_minimum_required(VERSION 3.22.2)
 
 project(ropes VERSION 0.1.1 LANGUAGES CXX)
