@@ -15,6 +15,7 @@
 #include <expression.hpp>
 
 namespace sym {
+#define ROPES_FWD
 
 template <typename T>
 [[nodiscard]] constexpr
@@ -231,7 +232,7 @@ auto integrate(
 
     return {
         std::views::zip(states, as, bs, cs, ds)
-        | std::views::transform([&](auto && tp) { return std::apply(evolve, FWD(tp)); })
+        | std::views::transform([&](auto && tp) { return std::apply(evolve, ROPES_FWD(tp)); })
         | std::ranges::to<std::vector<ph::state>>(),
         std::move(metadata)
     };
@@ -367,6 +368,8 @@ void reset(
     metadata.clear();
     t = settings.t0;
 }
+
+#undef ROPES_FWD
 
 }  // namespace sym
 
