@@ -9,7 +9,6 @@
 #include <fmt/core.h>
 #include <nonstd/scope.hpp>
 #include "graphics.hpp"
-#include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 #include <experimental/scope>
 

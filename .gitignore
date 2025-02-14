@@ -1,3 +1,4 @@
+# build related
 build/*
 CMakeFiles
 stuff
@@ -6,3 +7,7 @@ CMakeUserPresets.json
 build.ninja
 cmake_install.cmake
 imgui.ini
+
+# IDE related
+.vscode/*
+.idea/*
