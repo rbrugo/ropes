@@ -5,9 +5,11 @@
 ######################################################################
 
 # TO USE CONAN:
-#  conan install conanfile.txt --output-folder=build --build=missing --settings=build_type=Release
+#  conan install conanfile.txt --build=missing --settings=build_type=Release
 #  cmake --preset conan-release
 #  cmake --build --preset conan-release
+# RUN WITH:
+#  build/Release/ropes -n=200 --dt=0.001 --duration=25
 
 cmake_minimum_required(VERSION 3.22.2)
 

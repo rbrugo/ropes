@@ -383,4 +383,4 @@ int main(int argc, char * argv[]) try  // NOLINT
     fmt::print("{}\n", e.help());
 }
 
-// cmake --build build --preset conan-release && time build/build/Release/ropes -n=200 --dt=0.001 --duration=25
+// cmake --build --preset conan-release && time build/Release/ropes -n=200 --dt=0.001 --duration=25
