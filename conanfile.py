@@ -48,7 +48,7 @@ class RopesConanFile(ConanFile):
     # Change the required packages based on the user's options
     def configure(self):
         if self.options.check_opengl_compatibility == "yes":
-            self.requires(self.opengl_sanity_check)
+            self.conan_packages["opengl"] = self.opengl_sanity_check
         if self.options.sdl_source == "system":
             self.conan_packages.pop("sdl")
             self.conan_packages.pop("sdl_ttf")
