@@ -3,17 +3,17 @@
 It currently takes into account the following forces, which can be disabled if desired:
 - the _gravitational force_ on the rope
 - the _elastic force_ due to rope compression or elongation of the rope
-- the _internal friction_ of the rope fibers, loosely modelled as a linear damping in the
-    radial velocity of the point compared to its neighbors
 - the _external friction_ due to air, linear in the tangential velocity of the point
 - the _bending stiffness_ (aka _flexural rigidity_) of the rope which opposes to the bending
+- the _internal friction_ of the rope fibers, loosely modelled as a linear damping in the
+    radial velocity of the point compared to its neighbors
 
 Each force is modelled in a simple way and only accounts for the first neighbors, so it may not be
 the most accurate simulation in the world. Still pretty cool though, at least if you like ropes.
 
 ![ropes demo](blob/ropes_example.png)
 
-## How to compile `ropes`
+## Getting started (Build from source)
 `ropes` requires the following dependencies:
 - A compiler supporting at least `c++23`
 - `SDL2` and `OpenGL` for the graphics
@@ -30,7 +30,12 @@ cmake --preset conan-release
 # and compile
 cmake --build --preset conan-release
 ```
-Now you'll be able to run the simulation.
+
+To test your build, you can launch `ropes` with the following configuration 
+```bash
+ropes -n=200 --dt=0.001 --duration=250 --total-length=70 -x="t" -y="-t*t"
+```
+
 
 ## Usage
 ### CLI options
